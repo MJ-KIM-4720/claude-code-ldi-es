@@ -1,0 +1,25 @@
+{
+  "name": "LDI-ES-Constraint",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {}
+  },
+  "postCreateCommand": "pip install numpy scipy matplotlib pytest && npm install -g @anthropic-ai/claude-code",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.testing.pytestEnabled": true,
+        "python.testing.pytestArgs": ["tests/"]
+      },
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance"
+      ]
+    }
+  },
+  "secrets": {
+    "ANTHROPIC_API_KEY": {
+      "description": "Claude Code API key — Codespaces Secrets에 등록"
+    }
+  }
+}
