@@ -5,33 +5,34 @@ Baseline: Jo et al. (2025), Kraft & Steffensen (2013).
 
 IMPORTANT: R=0.02 (real rate), r=0.04 (nominal rate).
   → IIB excess = mu_I + R - r = 0.003
-  → Merton total ≈ 84%  (consistent with Jo et al. Figure 1)
-  → r_tilde = -0.023     (liability grows faster than assets)
+  → Merton total ≈ 80.4%
+  → r_tilde = -0.0084    (liability grows faster than assets)
 """
 
+import contextlib
 import numpy as np
 
 # ── Market ──────────────────────────────────────────────
 MU_S    = 0.08      # Stock expected return
-SIGMA_S = 0.20      # Stock volatility
+SIGMA_S = 0.18      # Stock volatility
 MU_I    = 0.023     # Expected inflation rate
-SIGMA_I = 0.05      # IIB volatility
+SIGMA_I = 0.07      # IIB volatility
 R       = 0.02      # Real interest rate
 r       = 0.04      # Nominal risk-free rate
-RHO     = -0.07     # Stock-IIB correlation
+RHO     = -0.15     # Stock-IIB correlation
 
 # ── Liability ───────────────────────────────────────────
-BETA_0  = 0.04      # Base liability growth rate
-BETA_1  = 1.0       # Inflation sensitivity
+BETA_0  = 0.03      # Base liability growth rate
+BETA_1  = 0.8       # Inflation sensitivity
 
 # ── Preferences ─────────────────────────────────────────
 GAMMA   = 3.0       # CRRA risk aversion
 
 # ── Constraint ──────────────────────────────────────────
 k       = 1.0       # Target funding ratio
-alpha   = 0.05      # VaR confidence level  P(F_T < k) <= alpha
-epsilon = 0.10      # ES budget             E^Q[(k-F_T)^+ e^{-r̃T}] <= epsilon
-T       = 5.0       # Horizon (years)
+alpha   = 0.10      # VaR confidence level  P(F_T < k) <= alpha
+epsilon = 0.05      # ES budget             E^Q[(k-F_T)^+ e^{-r̃T}] <= epsilon
+T       = 10.0      # Horizon (years)
 
 # ── Initial condition ───────────────────────────────────
 y0      = 1.0       # Initial funding ratio (default)
@@ -65,6 +66,74 @@ Pi_star = Sigma_inv @ mu_excess / GAMMA     # [pi*_S, pi*_I]
 
 # P-measure drift of ln(Y):  m_P = r̃ + γσ²_Y - σ²_Y/2
 m_P = r_tilde + GAMMA * sigma_Y**2 - sigma_Y**2 / 2
+
+
+# ═══════════════════════════════════════════════════════════
+# Parameter recomputation (for sensitivity analysis)
+# ═══════════════════════════════════════════════════════════
+
+def recompute_derived():
+    """Recompute all derived quantities from current primitive parameters.
+
+    Call after modifying any primitive parameter (MU_S, SIGMA_S, MU_I,
+    SIGMA_I, R, r, RHO, BETA_0, BETA_1, GAMMA).
+    """
+    global r_tilde, Sigma_mat, Sigma_inv, mu_excess, theta_sq
+    global sigma_Y, Pi_star, m_P
+
+    r_tilde = r - (BETA_0 + BETA_1 * MU_I)
+
+    Sigma_mat = np.array([
+        [SIGMA_S**2,              RHO * SIGMA_S * SIGMA_I],
+        [RHO * SIGMA_S * SIGMA_I, SIGMA_I**2             ]
+    ])
+    Sigma_inv = np.linalg.inv(Sigma_mat)
+
+    mu_excess = np.array([MU_S - r, MU_I + R - r])
+    theta_sq = mu_excess @ Sigma_inv @ mu_excess
+    sigma_Y = np.sqrt(theta_sq) / GAMMA
+    Pi_star = Sigma_inv @ mu_excess / GAMMA
+    m_P = r_tilde + GAMMA * sigma_Y**2 - sigma_Y**2 / 2
+
+
+@contextlib.contextmanager
+def override_params(**kwargs):
+    """Temporarily override parameters and recompute derived quantities.
+
+    Usage:
+        with override_params(GAMMA=5.0, T=10.0):
+            A = ES.cross_sectional_A(y0=0.8)
+
+    On exit, all parameters (primitive and derived) are restored.
+    """
+    _derived_names = ['r_tilde', 'Sigma_mat', 'Sigma_inv', 'mu_excess',
+                      'theta_sq', 'sigma_Y', 'Pi_star', 'm_P']
+
+    g = globals()
+
+    # Save primitive overrides
+    saved_prims = {}
+    for name in kwargs:
+        if name not in g:
+            raise KeyError(f"Unknown parameter: {name}")
+        saved_prims[name] = g[name]
+
+    # Save derived quantities (deep copy arrays)
+    saved_derived = {}
+    for name in _derived_names:
+        val = g[name]
+        saved_derived[name] = val.copy() if isinstance(val, np.ndarray) else val
+
+    try:
+        for name, value in kwargs.items():
+            g[name] = value
+        recompute_derived()
+        yield
+    finally:
+        for name, value in saved_prims.items():
+            g[name] = value
+        for name, value in saved_derived.items():
+            g[name] = value
 
 
 # ═══════════════════════════════════════════════════════════

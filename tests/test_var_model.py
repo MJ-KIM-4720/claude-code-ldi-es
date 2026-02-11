@@ -28,15 +28,15 @@ class TestVaRAdjustmentFactor:
 
     def test_A_at_y0_0_1(self):
         A = VaR.cross_sectional_A(y0=0.1)
-        assert A == pytest.approx(1.34, abs=0.01)
+        assert A == pytest.approx(1.80, abs=0.01)
 
     def test_A_at_y0_0_9(self):
         A = VaR.cross_sectional_A(y0=0.9)
-        assert A == pytest.approx(0.61, abs=0.01)
+        assert A == pytest.approx(0.89, abs=0.01)
 
     def test_A_at_y0_1_0(self):
         A = VaR.cross_sectional_A(y0=1.0)
-        assert A == pytest.approx(0.67, abs=0.01)
+        assert A == pytest.approx(0.92, abs=0.01)
 
     def test_A_at_y0_1_5(self):
         A = VaR.cross_sectional_A(y0=1.5)
