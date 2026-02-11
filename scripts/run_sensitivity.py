@@ -2,7 +2,7 @@
 Sensitivity Analysis
 ====================
 Generates figures for Groups A-E and a summary CSV table.
-Outputs saved to outputs/sensitivity/ at DPI 300.
+Outputs saved to result/sensitivity/ at DPI 300.
 
 Groups:
   A: Risk aversion (gamma)
@@ -27,7 +27,7 @@ from ldi import params as P, es_model as ES, var_model as VaR
 from ldi.params import override_params
 
 # ── Constants ──────────────────────────────────────────────
-OUT = os.path.join(os.path.dirname(__file__), "..", "outputs", "sensitivity")
+OUT = os.path.join(os.path.dirname(__file__), "..", "result", "sensitivity")
 DPI = 300
 F_RANGE = np.linspace(0.5, 1.3, 500)
 
