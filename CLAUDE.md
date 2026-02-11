@@ -29,7 +29,7 @@ The core contribution: ES eliminates gambling incentives that VaR creates for un
 │   └── run_monte_carlo.py     # MC 시뮬레이션
 │
 ├── tests/                     # pytest 기반 테스트
-│   ├── test_params.py         # 파라미터 검증 (Merton ≈ 84%, r_tilde ≈ -0.023)
+│   ├── test_params.py         # 파라미터 검증 (Merton ≈ 80.4%, r_tilde ≈ -0.0084)
 │   ├── test_es_model.py       # ES 모델 단위 테스트
 │   └── test_var_model.py      # VaR 모델 단위 테스트
 │
@@ -65,9 +65,9 @@ R = 0.02  (real interest rate)
 r = 0.04  (nominal risk-free rate)
 ```
 
-**DO NOT swap R and r.** With correct values: Merton total ≈ 84%, r_tilde = -0.023, sigma_Y = 0.0711. Swapping gives unrealistic Merton = 650%.
+**DO NOT swap R and r.** With correct values: Merton total ≈ 80.4%, r_tilde = -0.0084, sigma_Y = 0.0784. Swapping gives unrealistic Merton explosion.
 
-Default constraint parameters: `alpha = 0.05` (VaR), `epsilon = 0.10` (ES), `T = 5`, `k = 1.0`, `gamma = 3.0`.
+Default constraint parameters: `alpha = 0.10` (VaR), `epsilon = 0.05` (ES), `T = 10`, `k = 1.0`, `gamma = 3.0`.
 
 ## Model API
 
@@ -113,9 +113,9 @@ pi_S, pi_I = ES.optimal_portfolio(Y, k_eps, c, tau)
 
 | y0   | VaR A | ES A  | Interpretation                          |
 |------|-------|-------|-----------------------------------------|
-| 0.1  | 1.34  | 0.62  | VaR gambles, ES conservative            |
-| 0.9  | 0.61  | 0.70  | VaR trough (lock-in), ES moderate       |
-| 1.0  | 0.67  | 0.85  | Both constrained, ES less so            |
+| 0.1  | 1.80  | 0.29  | VaR gambles, ES conservative            |
+| 0.9  | 0.89  | 0.50  | VaR near Merton, ES moderate            |
+| 1.0  | 0.92  | 0.65  | Both constrained, ES more so            |
 | 1.5  | 1.00  | 1.00  | Both non-binding → Merton              |
 
 **이 값들은 regression test의 기준이다. 코드 수정 후 반드시 `/validate`로 확인할 것.**
