@@ -34,3 +34,14 @@
 - 민감도 분석을 위해 `params.py`에 `recompute_derived()`와 `override_params()` context manager 추가
 - `override_params(GAMMA=5.0)`으로 임시 파라미터 변경 → 모든 파생량 자동 재계산
 - context manager 종료 시 원래 값 복원 (finally 블록으로 안전하게)
+
+## 8. Monte Carlo 시뮬레이션 설계 (2026-02)
+- **Time-series 방식**: threshold를 t=0에서 한번만 solve, 이후 Y 변화에 따라 A 동적 계산
+- **P-measure dynamics**: `d ln(Y) = [r̃ + A·γ·σ²_Y - A²·σ²_Y/2] dt + A·σ_Y dW^P`
+  - A가 1이면 Merton GBM, A<1이면 변동성 축소 (ES), A>1이면 변동성 확대 (VaR gambling)
+- **벡터화**: adjustment factor를 numpy 배열 연산으로 구현 (스칼라 루프 대비 ~1000배 속도 향상)
+- **설정**: 10,000 paths, 250 steps (25 steps/year), 3 시나리오 (y0=0.8, 1.0, 1.2)
+- **핵심 발견**:
+  - y0=0.8(underfunded): ES는 매우 보수적 (std=0.04), VaR는 공격적 (std=0.11) → gambling incentive 확인
+  - y0=1.2(overfunded): 세 모델 거의 동일 → 제약 비결합 확인
+- **A clamp**: A를 [0, 5] 범위로 제한하여 수치 안정성 확보
