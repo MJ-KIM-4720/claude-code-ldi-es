@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from ldi import params as P
 from ldi import monte_carlo as MC
 
-OUT = os.path.join(os.path.dirname(__file__), "..", "outputs")
+OUT = os.path.join(os.path.dirname(__file__), "..", "results", "monte")
 os.makedirs(OUT, exist_ok=True)
 
 # ── Simulation settings ──────────────────────────────────
