@@ -1,0 +1,19 @@
+\begin{table}[htbp]
+\centering
+\caption{Monte Carlo summary statistics ($N = 10,000$, $T = 10$)}
+\label{tab:mc_summary}
+\begin{tabular}{cl ccccc}
+\toprule
+ & & & & & Expected & \\
+$F_0$ & Model & $\mathrm{E}[F_T]$ & $\mathrm{Std}[F_T]$ & $\mathrm{P}(F_T < k)$ & Shortfall & Median \\
+\midrule
+  \multirow{3}{*}{1.0} & ES & 1.032 & 0.190 & 0.591 & 0.0878 & 0.972 \\
+   & VaR & 1.078 & 0.239 & 0.479 & 0.1023 & 1.011 \\
+   & Merton & 1.108 & 0.279 & 0.390 & 0.1508 & 1.073 \\
+  \midrule
+  \multirow{3}{*}{0.8} & ES & 0.766 & 0.043 & 1.000 & 0.2338 & 0.766 \\
+   & VaR & 0.819 & 0.112 & 0.971 & 0.1900 & 0.824 \\
+   & Merton & 0.886 & 0.223 & 0.726 & 0.2214 & 0.858 \\
+\bottomrule
+\end{tabular}
+\end{table}
