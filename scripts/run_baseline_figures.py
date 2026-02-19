@@ -2,7 +2,7 @@
 Baseline Figures
 ================
 Generates 5 baseline figures comparing ES vs VaR constrained strategies.
-All figures saved to results/ at DPI 300.
+All figures saved to results/figures/ at DPI 300.
 
 Figures:
   1. Terminal Claim Function (Y₀ = 1.0 fixed)
@@ -24,10 +24,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from ldi import params as P, es_model as ES, var_model as VaR
 from ldi.bs_utils import bs_put, bs_digital_put
+from ldi.style import (apply_style, COLORS, LINE_STYLES, OPTION_DECOMP,
+                        FIGSIZES, DPI, LEGEND, MERTON_LINE, K_LINE,
+                        GAMBLING_REGION, setup_grid, add_merton_hline,
+                        add_k_vline, savefig)
 
 # ── Constants ──────────────────────────────────────────────
-OUT = os.path.join(os.path.dirname(__file__), "..", "results")
-DPI = 300
+OUT = os.path.join(os.path.dirname(__file__), "..", "results", "figures")
 
 
 # ═══════════════════════════════════════════════════════════
@@ -76,38 +79,37 @@ def plot_claim_function():
     # Unconstrained: g(y) = y (45-degree line)
     g_unc = y
 
-    fig, ax = plt.subplots(figsize=(10, 7))
+    fig, ax = plt.subplots(figsize=FIGSIZES['single'])
 
-    ax.plot(y, g_es, 'r-', lw=2.5, label='ES constraint')
-    ax.plot(y, g_var, 'b--', lw=2.5, label='VaR constraint')
-    ax.plot(y, g_unc, ':', color='gray', lw=1.5, label='Unconstrained (45° line)')
+    ax.plot(y, g_es, label='ES constraint', **LINE_STYLES['ES'])
+    ax.plot(y, g_var, label='VaR constraint', **LINE_STYLES['VaR'])
+    ax.plot(y, g_unc, label='Unconstrained (45° line)', **LINE_STYLES['Merton'])
 
     # Vertical dashed lines at thresholds
-    ax.axvline(k, color='green', ls='--', alpha=0.6, lw=1.2)
+    add_k_vline(ax, k)
     ax.text(k + 0.02, ax.get_ylim()[0] + 0.05, f'k = {k:.1f}',
             fontsize=10, color='green')
 
-    ax.axvline(k_eps, color='red', ls='--', alpha=0.5, lw=1.2)
+    ax.axvline(k_eps, color=COLORS['ES'], ls='--', alpha=0.5, lw=1.2)
     ax.text(k_eps + 0.02, 0.15, f'$k_\\varepsilon$ = {k_eps:.3f}',
-            fontsize=10, color='red')
+            fontsize=10, color=COLORS['ES'])
 
-    ax.axvline(k_alpha, color='blue', ls='--', alpha=0.5, lw=1.2)
+    ax.axvline(k_alpha, color=COLORS['VaR'], ls='--', alpha=0.5, lw=1.2)
     ax.text(k_alpha - 0.15, 0.05, f'$k_\\alpha$ = {k_alpha:.3f}',
-            fontsize=10, color='blue')
+            fontsize=10, color=COLORS['VaR'])
 
-    ax.set_xlabel('y (terminal funding ratio)', fontsize=12)
-    ax.set_ylabel('g(y) (claim function)', fontsize=12)
-    ax.set_title(r'Terminal Claim Function: ES vs VaR Constraint ($Y_0$ = 1.0)',
-                 fontsize=13)
-    ax.legend(fontsize=11, loc='upper left')
-    ax.grid(True, alpha=0.3)
+    ax.set_xlabel('$y$ (terminal funding ratio)')
+    ax.set_ylabel('$g(y)$ (claim function)')
+    ax.set_title(r'Terminal Claim Function: ES vs VaR Constraint ($Y_0$ = 1.0)')
+    ax.legend(loc='upper left', framealpha=LEGEND['framealpha'],
+              edgecolor=LEGEND['edgecolor'])
+    setup_grid(ax)
     ax.set_xlim(0, 1.5)
     ax.set_ylim(bottom=0)
 
     plt.tight_layout()
     path = os.path.join(OUT, 'fig_baseline_claim_function.png')
-    plt.savefig(path, dpi=DPI, bbox_inches='tight')
-    plt.close()
+    savefig(fig, path)
     print(f"  Saved {os.path.basename(path)}")
     return fig
 
@@ -141,25 +143,23 @@ def plot_present_value():
             else:
                 psi_var[i] = F
 
-    fig, ax = plt.subplots(figsize=(10, 7))
+    fig, ax = plt.subplots(figsize=FIGSIZES['single'])
 
-    ax.plot(F_range, psi_es, 'r-', lw=2.5, label=r'$\Psi_{ES}$')
-    ax.plot(F_range, psi_var, 'b--', lw=2.5, label=r'$\Psi_{VaR}$')
-    ax.plot(F_range, F_range, ':', color='gray', lw=1.5,
-            label=r'Unconstrained ($\Psi = F$)')
+    ax.plot(F_range, psi_es, label=r'$\Psi_{ES}$', **LINE_STYLES['ES'])
+    ax.plot(F_range, psi_var, label=r'$\Psi_{VaR}$', **LINE_STYLES['VaR'])
+    ax.plot(F_range, F_range, label=r'Unconstrained ($\Psi = F$)',
+            **LINE_STYLES['Merton'])
 
-    ax.set_xlabel('F(t) (current funding ratio)', fontsize=12)
-    ax.set_ylabel(r'$\Psi(t, F)$ (present value)', fontsize=12)
-    ax.set_title('Present Value of Constrained Portfolio: ES vs VaR',
-                 fontsize=13)
-    ax.legend(fontsize=11)
-    ax.grid(True, alpha=0.3)
+    ax.set_xlabel('Funding Ratio $F(t)$')
+    ax.set_ylabel(r'$\Psi(t, F)$ (present value)')
+    ax.set_title('Present Value of Constrained Portfolio: ES vs VaR')
+    ax.legend(**LEGEND)
+    setup_grid(ax)
     ax.set_xlim(0.5, 1.3)
 
     plt.tight_layout()
     path = os.path.join(OUT, 'fig_baseline_present_value.png')
-    plt.savefig(path, dpi=DPI, bbox_inches='tight')
-    plt.close()
+    savefig(fig, path)
     print(f"  Saved {os.path.basename(path)}")
     return fig
 
@@ -185,17 +185,17 @@ def plot_adjustment_factor():
         except Exception:
             pass
 
-    fig, ax = plt.subplots(figsize=(10, 7))
+    fig, ax = plt.subplots(figsize=FIGSIZES['single'])
 
-    ax.plot(F_range, A_es, 'r-', lw=2.5, label=r'ES ($\varepsilon$ = 0.05)')
-    ax.plot(F_range, A_var, 'b--', lw=2.5, label=r'VaR ($\alpha$ = 0.1)')
-    ax.axhline(1.0, color='gray', ls=':', alpha=0.6, lw=1.5, label='A = 1 (Merton)')
+    ax.plot(F_range, A_es, label=r'ES ($\varepsilon$ = 0.05)', **LINE_STYLES['ES'])
+    ax.plot(F_range, A_var, label=r'VaR ($\alpha$ = 0.1)', **LINE_STYLES['VaR'])
+    add_merton_hline(ax, 1.0, 'A = 1 (Merton)')
 
     # Shade gambling region (A > 1 for VaR)
     gambling_mask = A_var > 1.0
     if np.any(gambling_mask):
         ax.fill_between(F_range, 1.0, A_var, where=gambling_mask,
-                        color='red', alpha=0.12, label='Gambling region (VaR)')
+                        **GAMBLING_REGION, label='Gambling region (VaR)')
         # Add annotation at peak of gambling region
         gambling_idx = np.where(gambling_mask)[0]
         if len(gambling_idx) > 0:
@@ -203,22 +203,20 @@ def plot_adjustment_factor():
             ax.annotate('Gambling\nRegion',
                         xy=(F_range[peak_idx], A_var[peak_idx]),
                         xytext=(F_range[peak_idx] + 0.08, A_var[peak_idx] + 0.15),
-                        fontsize=10, color='darkred', fontweight='bold',
-                        arrowprops=dict(arrowstyle='->', color='darkred', lw=1.5),
+                        fontsize=10, color=COLORS['ES'], fontweight='bold',
+                        arrowprops=dict(arrowstyle='->', color=COLORS['ES'], lw=1.5),
                         ha='center')
 
-    ax.set_xlabel('F(t) (current funding ratio)', fontsize=12)
-    ax.set_ylabel('Adjustment Factor A(F)', fontsize=12)
-    ax.set_title('Portfolio Adjustment Factor: ES vs VaR Constraint',
-                 fontsize=13)
-    ax.legend(fontsize=11)
-    ax.grid(True, alpha=0.3)
+    ax.set_xlabel('Funding Ratio $F(t)$')
+    ax.set_ylabel('Adjustment Factor $A(F)$')
+    ax.set_title('Portfolio Adjustment Factor: ES vs VaR Constraint')
+    ax.legend(**LEGEND)
+    setup_grid(ax)
     ax.set_xlim(0.5, 1.3)
 
     plt.tight_layout()
     path = os.path.join(OUT, 'fig_baseline_adjustment_factor.png')
-    plt.savefig(path, dpi=DPI, bbox_inches='tight')
-    plt.close()
+    savefig(fig, path)
     print(f"  Saved {os.path.basename(path)}")
     return fig
 
@@ -267,52 +265,30 @@ def plot_allocation():
     merton_I = P.Pi_star[1]
     merton_total = P.Pi_star.sum()
 
-    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+    fig, axes = plt.subplots(1, 3, figsize=FIGSIZES['triple'])
 
-    # Subplot 1: Stock
-    ax = axes[0]
-    ax.plot(F_range, pi_S_es, 'r-', lw=2.5, label='ES')
-    ax.plot(F_range, pi_S_var, 'b--', lw=2.5, label='VaR')
-    ax.axhline(merton_S, color='gray', ls=':', alpha=0.6, lw=1.5,
-               label=f'Merton ({merton_S:.2f})')
-    ax.set_xlabel('F(t)', fontsize=12)
-    ax.set_ylabel(r'$\pi_S$', fontsize=12)
-    ax.set_title('Stock', fontsize=13)
-    ax.legend(fontsize=10)
-    ax.grid(True, alpha=0.3)
-    ax.set_xlim(0.5, 1.3)
+    titles = ['Stock', 'Inflation-Indexed Bond', 'Total Risky']
+    ylabels = [r'$\pi_S$', r'$\pi_I$', r'$\pi_S + \pi_I$']
+    es_data = [pi_S_es, pi_I_es, total_es]
+    var_data = [pi_S_var, pi_I_var, total_var]
+    merton_vals = [merton_S, merton_I, merton_total]
 
-    # Subplot 2: IIB
-    ax = axes[1]
-    ax.plot(F_range, pi_I_es, 'r-', lw=2.5, label='ES')
-    ax.plot(F_range, pi_I_var, 'b--', lw=2.5, label='VaR')
-    ax.axhline(merton_I, color='gray', ls=':', alpha=0.6, lw=1.5,
-               label=f'Merton ({merton_I:.2f})')
-    ax.set_xlabel('F(t)', fontsize=12)
-    ax.set_ylabel(r'$\pi_I$', fontsize=12)
-    ax.set_title('Inflation-Indexed Bond', fontsize=13)
-    ax.legend(fontsize=10)
-    ax.grid(True, alpha=0.3)
-    ax.set_xlim(0.5, 1.3)
+    for ax, title, ylabel, es_d, var_d, m_val in zip(
+            axes, titles, ylabels, es_data, var_data, merton_vals):
+        ax.plot(F_range, es_d, label='ES', **LINE_STYLES['ES'])
+        ax.plot(F_range, var_d, label='VaR', **LINE_STYLES['VaR'])
+        add_merton_hline(ax, m_val, f'Merton ({m_val:.2f})')
+        ax.set_xlabel('Funding Ratio $F(t)$')
+        ax.set_ylabel(ylabel)
+        ax.set_title(title)
+        ax.legend(**LEGEND)
+        setup_grid(ax)
+        ax.set_xlim(0.5, 1.3)
 
-    # Subplot 3: Total Risky
-    ax = axes[2]
-    ax.plot(F_range, total_es, 'r-', lw=2.5, label='ES')
-    ax.plot(F_range, total_var, 'b--', lw=2.5, label='VaR')
-    ax.axhline(merton_total, color='gray', ls=':', alpha=0.6, lw=1.5,
-               label=f'Merton ({merton_total:.2f})')
-    ax.set_xlabel('F(t)', fontsize=12)
-    ax.set_ylabel(r'$\pi_S + \pi_I$', fontsize=12)
-    ax.set_title('Total Risky', fontsize=13)
-    ax.legend(fontsize=10)
-    ax.grid(True, alpha=0.3)
-    ax.set_xlim(0.5, 1.3)
-
-    fig.suptitle('Optimal Asset Allocation: ES vs VaR Constraint', fontsize=14, y=1.02)
+    fig.suptitle('Optimal Asset Allocation: ES vs VaR Constraint')
     plt.tight_layout()
     path = os.path.join(OUT, 'fig_baseline_allocation.png')
-    plt.savefig(path, dpi=DPI, bbox_inches='tight')
-    plt.close()
+    savefig(fig, path)
     print(f"  Saved {os.path.basename(path)}")
     return fig
 
@@ -371,41 +347,45 @@ def plot_option_decomposition():
                 var_neg_digital[i] = 0.0
                 var_net[i] = 0.0
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 7))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=FIGSIZES['triple'])
 
     # Left: ES decomposition
-    ax1.plot(F_range, es_put_k, 'g-', lw=2, label='Put(F, k)')
-    ax1.plot(F_range, es_neg_c_put_ke, 'm--', lw=2,
-             label=r'$-c \cdot$ Put(F, $k_\varepsilon$)')
-    ax1.plot(F_range, es_net, 'k-', lw=2.5, label=r'Net ($\Psi_{ES} - F$)')
-    ax1.axhline(0, color='gray', ls=':', alpha=0.4)
-    ax1.set_xlabel('F(t)', fontsize=12)
-    ax1.set_ylabel('Option value', fontsize=12)
-    ax1.set_title('ES: Option Decomposition', fontsize=13)
-    ax1.legend(fontsize=10)
-    ax1.grid(True, alpha=0.3)
+    ax1.plot(F_range, es_put_k, label='Put(F, k)', **OPTION_DECOMP['put_k'])
+    ax1.plot(F_range, es_neg_c_put_ke,
+             label=r'$-c \cdot$ Put(F, $k_\varepsilon$)',
+             **OPTION_DECOMP['neg_put'])
+    ax1.plot(F_range, es_net, label=r'Net ($\Psi_{ES} - F$)',
+             **OPTION_DECOMP['net'])
+    ax1.axhline(0, color=COLORS['Merton'], ls=':', alpha=0.4)
+    ax1.set_xlabel('Funding Ratio $F(t)$')
+    ax1.set_ylabel('Option value')
+    ax1.set_title('ES: Option Decomposition')
+    ax1.legend(**LEGEND)
+    setup_grid(ax1)
     ax1.set_xlim(0.5, 1.3)
 
     # Right: VaR decomposition
-    ax2.plot(F_range, var_put_k, 'g-', lw=2, label='Put(F, k)')
-    ax2.plot(F_range, var_neg_put_ka, 'm--', lw=2,
-             label=r'$-$Put(F, $k_\alpha$)')
-    ax2.plot(F_range, var_neg_digital, 'c-.', lw=2,
-             label=r'$-(k-k_\alpha) \cdot$ Digital($k_\alpha$)')
-    ax2.plot(F_range, var_net, 'k-', lw=2.5, label=r'Net ($\Psi_{VaR} - F$)')
-    ax2.axhline(0, color='gray', ls=':', alpha=0.4)
-    ax2.set_xlabel('F(t)', fontsize=12)
-    ax2.set_ylabel('Option value', fontsize=12)
-    ax2.set_title('VaR: Option Decomposition', fontsize=13)
-    ax2.legend(fontsize=10)
-    ax2.grid(True, alpha=0.3)
+    ax2.plot(F_range, var_put_k, label='Put(F, k)', **OPTION_DECOMP['put_k'])
+    ax2.plot(F_range, var_neg_put_ka,
+             label=r'$-$Put(F, $k_\alpha$)',
+             **OPTION_DECOMP['neg_put'])
+    ax2.plot(F_range, var_neg_digital,
+             label=r'$-(k-k_\alpha) \cdot$ Digital($k_\alpha$)',
+             **OPTION_DECOMP['digital'])
+    ax2.plot(F_range, var_net, label=r'Net ($\Psi_{VaR} - F$)',
+             **OPTION_DECOMP['net'])
+    ax2.axhline(0, color=COLORS['Merton'], ls=':', alpha=0.4)
+    ax2.set_xlabel('Funding Ratio $F(t)$')
+    ax2.set_ylabel('Option value')
+    ax2.set_title('VaR: Option Decomposition')
+    ax2.legend(**LEGEND)
+    setup_grid(ax2)
     ax2.set_xlim(0.5, 1.3)
 
-    fig.suptitle('Option Portfolio Decomposition: ES vs VaR', fontsize=14, y=1.02)
+    fig.suptitle('Option Portfolio Decomposition: ES vs VaR')
     plt.tight_layout()
     path = os.path.join(OUT, 'fig_baseline_option_decomposition.png')
-    plt.savefig(path, dpi=DPI, bbox_inches='tight')
-    plt.close()
+    savefig(fig, path)
     print(f"  Saved {os.path.basename(path)}")
     return fig
 
@@ -415,6 +395,7 @@ def plot_option_decomposition():
 # ═══════════════════════════════════════════════════════════
 
 def main():
+    apply_style()
     os.makedirs(OUT, exist_ok=True)
 
     print("=" * 55)

@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 from . import params as P
 from . import es_model as ES
 from . import var_model as VaR
+from .style import (COLORS, LINE_STYLES, FIGSIZES, DPI, LEGEND,
+                     setup_grid, add_merton_hline, add_k_vline, savefig)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -49,36 +51,38 @@ def plot_cross_sectional(y0_range=(0.05, 2.5), n_points=1000,
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
 
     # Left: Adjustment factor
-    ax1.plot(y0_vals, Av, 'b-', lw=2.5, label=f'VaR (α={_alpha})')
-    ax1.plot(y0_vals, Ae, 'r-', lw=2.5, label=f'ES (ε={_eps})')
-    ax1.axhline(1.0, color='gray', ls='--', alpha=0.5, label='Merton (A=1)')
-    ax1.axvline(P.k, color='green', ls=':', alpha=0.3)
-    ax1.set_xlabel('y₀ (initial funding ratio)', fontsize=12)
-    ax1.set_ylabel('Adjustment Factor A(y₀)', fontsize=12)
-    ax1.set_title('Cross-Sectional Adjustment Factor', fontsize=13)
-    ax1.legend(fontsize=11)
-    ax1.grid(True, alpha=0.3)
+    ax1.plot(y0_vals, Av, label=f'VaR ($\\alpha$={_alpha})', **LINE_STYLES['VaR'])
+    ax1.plot(y0_vals, Ae, label=f'ES ($\\varepsilon$={_eps})', **LINE_STYLES['ES'])
+    add_merton_hline(ax1, 1.0, 'Merton (A=1)')
+    add_k_vline(ax1)
+    ax1.set_xlabel('Funding Ratio $F(t)$')
+    ax1.set_ylabel('Adjustment Factor $A(F)$')
+    ax1.set_title('Cross-Sectional Adjustment Factor')
+    ax1.legend(**LEGEND)
+    setup_grid(ax1)
     ax1.set_xlim(y0_range)
 
     # Right: Total allocation
-    ax2.plot(y0_vals, [a * mt for a in Av], 'b-', lw=2.5, label='VaR')
-    ax2.plot(y0_vals, [a * mt for a in Ae], 'r-', lw=2.5, label='ES')
-    ax2.axhline(mt, color='gray', ls='--', alpha=0.5, label=f'Merton ({mt:.0f}%)')
-    ax2.axvline(P.k, color='green', ls=':', alpha=0.3)
-    ax2.set_xlabel('y₀ (initial funding ratio)', fontsize=12)
-    ax2.set_ylabel('Total Risky Allocation (%)', fontsize=12)
-    ax2.set_title('Cross-Sectional Total Allocation', fontsize=13)
-    ax2.legend(fontsize=11)
-    ax2.grid(True, alpha=0.3)
+    ax2.plot(y0_vals, [a * mt for a in Av], label='VaR', **LINE_STYLES['VaR'])
+    ax2.plot(y0_vals, [a * mt for a in Ae], label='ES', **LINE_STYLES['ES'])
+    add_merton_hline(ax2, mt, f'Merton ({mt:.0f}%)')
+    add_k_vline(ax2)
+    ax2.set_xlabel('Funding Ratio $F(t)$')
+    ax2.set_ylabel('Total Risky Allocation (%)')
+    ax2.set_title('Cross-Sectional Total Allocation')
+    ax2.legend(**LEGEND)
+    setup_grid(ax2)
     ax2.set_xlim(y0_range)
 
-    plt.suptitle(f'R={P.R}, r={P.r}, γ={P.GAMMA}, T={P.T}', fontsize=12)
+    plt.suptitle(f'$R$={P.R}, $r$={P.r}, $\\gamma$={P.GAMMA}, $T$={P.T}',
+                 fontsize=14)
     plt.tight_layout()
 
     if save_path:
-        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        savefig(fig, save_path)
         print(f"Saved: {save_path}")
-    plt.close()
+    else:
+        plt.close()
     return fig
 
 
@@ -111,37 +115,43 @@ def plot_time_series(y0_fund=None, Y_range=(0.1, 2.5), n_points=1000,
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
 
     # Left: Adjustment factor
-    ax1.plot(Y_vals, Av, 'b-', lw=2.5, label=f'VaR (k_α={k_alpha:.3f})')
-    ax1.plot(Y_vals, Ae, 'r-', lw=2.5, label=f'ES (k_ε={k_eps:.3f})')
-    ax1.axhline(1.0, color='gray', ls='--', alpha=0.5)
-    ax1.axvline(k_alpha, color='blue', ls=':', alpha=0.4, label=f'k_α={k_alpha:.3f}')
-    ax1.axvline(k_eps, color='red', ls=':', alpha=0.4, label=f'k_ε={k_eps:.3f}')
-    ax1.axvline(P.k, color='green', ls=':', alpha=0.3)
-    ax1.set_xlabel('Y (current funding ratio)', fontsize=12)
-    ax1.set_ylabel('A(Y)', fontsize=12)
-    ax1.set_title(f'Time-Series: Fund starting at y₀={y0_fund}', fontsize=13)
-    ax1.legend(fontsize=10)
-    ax1.grid(True, alpha=0.3)
+    ax1.plot(Y_vals, Av, label=f'VaR ($k_\\alpha$={k_alpha:.3f})',
+             **LINE_STYLES['VaR'])
+    ax1.plot(Y_vals, Ae, label=f'ES ($k_\\varepsilon$={k_eps:.3f})',
+             **LINE_STYLES['ES'])
+    add_merton_hline(ax1, 1.0, 'Merton (A=1)')
+    ax1.axvline(k_alpha, color=COLORS['VaR'], ls=':', alpha=0.4,
+                label=f'$k_\\alpha$={k_alpha:.3f}')
+    ax1.axvline(k_eps, color=COLORS['ES'], ls=':', alpha=0.4,
+                label=f'$k_\\varepsilon$={k_eps:.3f}')
+    add_k_vline(ax1)
+    ax1.set_xlabel('Funding Ratio $F(t)$')
+    ax1.set_ylabel('$A(F)$')
+    ax1.set_title(f'Time-Series: Fund starting at $F_0$={y0_fund}')
+    ax1.legend(**LEGEND)
+    setup_grid(ax1)
     ax1.set_xlim(Y_range)
 
     # Right: Total allocation
-    ax2.plot(Y_vals, [a * mt for a in Av], 'b-', lw=2.5, label='VaR')
-    ax2.plot(Y_vals, [a * mt for a in Ae], 'r-', lw=2.5, label='ES')
-    ax2.axhline(mt, color='gray', ls='--', alpha=0.5, label=f'Merton ({mt:.0f}%)')
-    ax2.set_xlabel('Y (current funding ratio)', fontsize=12)
-    ax2.set_ylabel('Total Risky Allocation (%)', fontsize=12)
-    ax2.set_title('Total Allocation over Time', fontsize=13)
-    ax2.legend(fontsize=10)
-    ax2.grid(True, alpha=0.3)
+    ax2.plot(Y_vals, [a * mt for a in Av], label='VaR', **LINE_STYLES['VaR'])
+    ax2.plot(Y_vals, [a * mt for a in Ae], label='ES', **LINE_STYLES['ES'])
+    add_merton_hline(ax2, mt, f'Merton ({mt:.0f}%)')
+    ax2.set_xlabel('Funding Ratio $F(t)$')
+    ax2.set_ylabel('Total Risky Allocation (%)')
+    ax2.set_title('Total Allocation over Time')
+    ax2.legend(**LEGEND)
+    setup_grid(ax2)
     ax2.set_xlim(Y_range)
 
-    plt.suptitle(f'y₀={y0_fund}, α={_alpha}, ε={_eps}', fontsize=12)
+    plt.suptitle(f'$F_0$={y0_fund}, $\\alpha$={_alpha}, $\\varepsilon$={_eps}',
+                 fontsize=14)
     plt.tight_layout()
 
     if save_path:
-        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        savefig(fig, save_path)
         print(f"Saved: {save_path}")
-    plt.close()
+    else:
+        plt.close()
     return fig
 
 
@@ -159,31 +169,32 @@ def plot_eps_sensitivity(eps_list=None, y0_range=(0.05, 2.5), n_points=1000,
     y0_vals = np.linspace(*y0_range, n_points)
     Av = [VaR.cross_sectional_A(y0) for y0 in y0_vals]
 
-    colors = ['darkred', 'red', 'orangered', 'orange']
+    colors = COLORS['param_values'][:len(eps_list)]
 
-    fig, ax = plt.subplots(figsize=(10, 7))
-    ax.plot(y0_vals, Av, 'b-', lw=2.5, label=f'VaR (α={P.alpha})')
+    fig, ax = plt.subplots(figsize=FIGSIZES['single'])
+    ax.plot(y0_vals, Av, label=f'VaR ($\\alpha$={P.alpha})', **LINE_STYLES['VaR'])
 
     for eps, color in zip(eps_list, colors):
         Ae = [ES.cross_sectional_A(y0, eps) for y0 in y0_vals]
-        ls = '-' if eps >= 0.10 else '--' if eps >= 0.05 else ':'
-        ax.plot(y0_vals, Ae, color=color, ls=ls, lw=2, label=f'ES (ε={eps})')
+        ax.plot(y0_vals, Ae, color=color, ls='-', lw=2,
+                label=f'ES ($\\varepsilon$={eps})')
 
-    ax.axhline(1.0, color='gray', ls='--', alpha=0.5)
-    ax.axvline(P.k, color='green', ls=':', alpha=0.3)
-    ax.set_xlabel('y₀ (initial funding ratio)', fontsize=12)
-    ax.set_ylabel('Adjustment Factor A(y₀)', fontsize=12)
-    ax.set_title('Effect of ES Budget (ε) on Adjustment Factor', fontsize=14)
-    ax.legend(fontsize=11)
-    ax.grid(True, alpha=0.3)
+    add_merton_hline(ax, 1.0, 'Merton (A=1)')
+    add_k_vline(ax)
+    ax.set_xlabel('Funding Ratio $F(t)$')
+    ax.set_ylabel('Adjustment Factor $A(F)$')
+    ax.set_title(r'Effect of ES Budget ($\varepsilon$) on Adjustment Factor')
+    ax.legend(**LEGEND)
+    setup_grid(ax)
     ax.set_xlim(y0_range)
     ax.set_ylim(bottom=0)
     plt.tight_layout()
 
     if save_path:
-        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        savefig(fig, save_path)
         print(f"Saved: {save_path}")
-    plt.close()
+    else:
+        plt.close()
     return fig
 
 
@@ -193,8 +204,13 @@ def plot_eps_sensitivity(eps_list=None, y0_range=(0.05, 2.5), n_points=1000,
 
 if __name__ == "__main__":
     import os
+    from .style import apply_style
 
-    out = "/mnt/user-data/outputs"
+    apply_style()
+
+    out = os.path.join(os.path.dirname(__file__), "..", "results", "figures")
+    os.makedirs(out, exist_ok=True)
+
     P.print_params()
     print()
 
