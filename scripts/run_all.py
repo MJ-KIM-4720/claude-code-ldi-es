@@ -10,6 +10,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from ldi import params as P
+from ldi.style import apply_style
 from ldi.compare import (
     cross_sectional_table,
     plot_cross_sectional,
@@ -17,11 +18,12 @@ from ldi.compare import (
     plot_eps_sensitivity,
 )
 
-OUT = os.path.join(os.path.dirname(__file__), "..", "outputs")
+OUT = os.path.join(os.path.dirname(__file__), "..", "results", "figures")
 os.makedirs(OUT, exist_ok=True)
 
 
 def main():
+    apply_style()
     P.print_params()
     print()
 
@@ -33,7 +35,7 @@ def main():
     plot_time_series(save_path=os.path.join(OUT, "time_series.png"))
     plot_eps_sensitivity(save_path=os.path.join(OUT, "eps_sensitivity.png"))
 
-    print("\nAll figures generated in outputs/")
+    print("\nAll figures generated in results/figures/")
 
 
 if __name__ == "__main__":

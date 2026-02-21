@@ -14,6 +14,8 @@ import os
 import sys
 import time
 
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -21,8 +23,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from ldi import params as P
 from ldi import monte_carlo as MC
+from ldi.style import (apply_style, COLORS, FIGSIZES, DPI, FAN_ALPHA,
+                        HIST_ALPHA, MERTON_LINE, LEGEND, setup_grid, savefig)
 
-OUT = os.path.join(os.path.dirname(__file__), "..", "results", "monte")
+OUT = os.path.join(os.path.dirname(__file__), "..", "results", "figures")
 os.makedirs(OUT, exist_ok=True)
 
 # ── Simulation settings ──────────────────────────────────
@@ -31,7 +35,7 @@ N_STEPS  = 250       # ~10 steps per year for T=10 (25/year)
 SEED     = 42
 MODELS   = ['es', 'var', 'merton']
 LABELS   = {'es': 'ES', 'var': 'VaR', 'merton': 'Merton'}
-COLORS   = {'es': 'C0', 'var': 'C1', 'merton': 'C2'}
+MC_COLORS = {'es': COLORS['ES'], 'var': COLORS['VaR'], 'merton': COLORS['Merton']}
 
 
 def run_scenario(y0, tag=""):
@@ -63,76 +67,86 @@ def run_scenario(y0, tag=""):
     suffix = f"_y0{y0:.1f}".replace(".", "")
 
     # ── Figure 1: Fan charts ──────────────────────────────
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5), sharey=True)
+    fig, axes = plt.subplots(1, 3, figsize=FIGSIZES['triple'], sharey=True)
     for ax, model in zip(axes, MODELS):
         s = results[model]['stats']
         t = results[model]['t_grid']
-        ax.fill_between(t, s['q05'], s['q95'], alpha=0.15, color=COLORS[model])
-        ax.fill_between(t, s['q25'], s['q75'], alpha=0.3, color=COLORS[model])
-        ax.plot(t, s['median'], color=COLORS[model], lw=2, label='Median')
-        ax.plot(t, s['mean'], color=COLORS[model], lw=1, ls='--', label='Mean')
-        ax.axhline(P.k, color='gray', ls=':', lw=0.8)
-        ax.set_title(f"{LABELS[model]}  (y₀={y0})")
-        ax.set_xlabel('t (years)')
-        ax.legend(fontsize=8)
+        c = MC_COLORS[model]
+        ax.fill_between(t, s['q05'], s['q95'], alpha=FAN_ALPHA['outer'], color=c)
+        ax.fill_between(t, s['q25'], s['q75'], alpha=FAN_ALPHA['middle'], color=c)
+        ax.plot(t, s['median'], color=c, lw=2, label='Median')
+        ax.plot(t, s['mean'], color=c, lw=1, ls='--', label='Mean')
+        ax.axhline(P.k, **MERTON_LINE, label=f'k={P.k}')
+        ax.set_title(f"{LABELS[model]}  ($F_0$={y0})")
+        ax.set_xlabel('$t$ (years)')
+        ax.legend(**LEGEND)
         ax.set_ylim(0, max(3.0, s['q95'].max() * 1.2))
-    axes[0].set_ylabel('Funding Ratio Y')
-    fig.suptitle(f'Fan Chart: Funding Ratio Paths (y₀={y0})', fontsize=13)
+        setup_grid(ax)
+    axes[0].set_ylabel('Funding Ratio $F(t)$')
+    fig.suptitle(f'Fan Chart: Funding Ratio Paths ($F_0$={y0})')
     fig.tight_layout()
-    fig.savefig(os.path.join(OUT, f"mc_fan{suffix}.png"), dpi=150)
-    plt.close(fig)
+    path = os.path.join(OUT, f"mc_fan{suffix}.png")
+    savefig(fig, path)
+    print(f"  Saved mc_fan{suffix}.png")
 
     # ── Figure 2: Terminal distribution ───────────────────
-    fig, ax = plt.subplots(figsize=(8, 5))
+    fig, ax = plt.subplots(figsize=FIGSIZES['single'])
     for model in MODELS:
         Y_T = results[model]['paths'][:, -1]
         # Clip for histogram visibility
         Y_T_clip = np.clip(Y_T, 0, np.quantile(Y_T, 0.99))
-        ax.hist(Y_T_clip, bins=80, alpha=0.4, color=COLORS[model],
-                label=f"{LABELS[model]} (μ={results[model]['tstats']['mean']:.2f})",
+        ax.hist(Y_T_clip, bins=80, alpha=HIST_ALPHA, color=MC_COLORS[model],
+                label=f"{LABELS[model]} ($\\mu$={results[model]['tstats']['mean']:.2f})",
                 density=True)
-    ax.axvline(P.k, color='gray', ls=':', lw=1.5, label=f'k={P.k}')
-    ax.set_xlabel('Terminal Funding Ratio Y_T')
+    ax.axvline(P.k, **MERTON_LINE, label=f'k={P.k}')
+    ax.set_xlabel('Terminal Funding Ratio $F_T$')
     ax.set_ylabel('Density')
-    ax.set_title(f'Terminal Distribution (y₀={y0}, T={P.T:.0f})')
-    ax.legend()
+    ax.set_title(f'Terminal Distribution ($F_0$={y0}, $T$={P.T:.0f})')
+    ax.legend(**LEGEND)
+    setup_grid(ax)
     fig.tight_layout()
-    fig.savefig(os.path.join(OUT, f"mc_terminal{suffix}.png"), dpi=150)
-    plt.close(fig)
+    path = os.path.join(OUT, f"mc_terminal{suffix}.png")
+    savefig(fig, path)
+    print(f"  Saved mc_terminal{suffix}.png")
 
     # ── Figure 3: Shortfall probability over time ─────────
-    fig, ax = plt.subplots(figsize=(8, 5))
+    fig, ax = plt.subplots(figsize=FIGSIZES['single'])
     for model in MODELS:
         t = results[model]['t_grid']
         sf = results[model]['sf_prob']
-        ax.plot(t, sf, color=COLORS[model], lw=2, label=LABELS[model])
-    ax.axhline(P.alpha, color='gray', ls=':', lw=0.8, label=f'α={P.alpha}')
-    ax.set_xlabel('t (years)')
-    ax.set_ylabel('P(Y_t < k)')
-    ax.set_title(f'Shortfall Probability Over Time (y₀={y0})')
-    ax.legend()
+        ax.plot(t, sf, color=MC_COLORS[model], lw=2, label=LABELS[model])
+    ax.axhline(P.alpha, **MERTON_LINE, label=f'$\\alpha$={P.alpha}')
+    ax.set_xlabel('$t$ (years)')
+    ax.set_ylabel('$P(F_t < k)$')
+    ax.set_title(f'Shortfall Probability Over Time ($F_0$={y0})')
+    ax.legend(**LEGEND)
     ax.set_ylim(-0.02, 1.02)
+    setup_grid(ax)
     fig.tight_layout()
-    fig.savefig(os.path.join(OUT, f"mc_shortfall{suffix}.png"), dpi=150)
-    plt.close(fig)
+    path = os.path.join(OUT, f"mc_shortfall{suffix}.png")
+    savefig(fig, path)
+    print(f"  Saved mc_shortfall{suffix}.png")
 
     # ── Figure 4: Sample paths ────────────────────────────
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5), sharey=True)
+    fig, axes = plt.subplots(1, 3, figsize=FIGSIZES['triple'], sharey=True)
     n_sample = 20
     for ax, model in zip(axes, MODELS):
         t = results[model]['t_grid']
+        c = MC_COLORS[model]
         for j in range(n_sample):
             ax.plot(t, results[model]['paths'][j, :],
-                    alpha=0.4, lw=0.6, color=COLORS[model])
-        ax.axhline(P.k, color='gray', ls=':', lw=0.8)
-        ax.set_title(f"{LABELS[model]}  (y₀={y0})")
-        ax.set_xlabel('t (years)')
+                    alpha=0.4, lw=0.6, color=c)
+        ax.axhline(P.k, **MERTON_LINE)
+        ax.set_title(f"{LABELS[model]}  ($F_0$={y0})")
+        ax.set_xlabel('$t$ (years)')
         ax.set_ylim(0, max(3.0, results[model]['paths'][:n_sample].max() * 1.1))
-    axes[0].set_ylabel('Funding Ratio Y')
-    fig.suptitle(f'Sample Paths (y₀={y0}, {n_sample} paths)', fontsize=13)
+        setup_grid(ax)
+    axes[0].set_ylabel('Funding Ratio $F(t)$')
+    fig.suptitle(f'Sample Paths ($F_0$={y0}, {n_sample} paths)')
     fig.tight_layout()
-    fig.savefig(os.path.join(OUT, f"mc_samples{suffix}.png"), dpi=150)
-    plt.close(fig)
+    path = os.path.join(OUT, f"mc_samples{suffix}.png")
+    savefig(fig, path)
+    print(f"  Saved mc_samples{suffix}.png")
 
     return results
 
@@ -156,6 +170,7 @@ def print_summary_table(all_results):
 
 
 def main():
+    apply_style()
     P.print_params()
 
     scenarios = {
