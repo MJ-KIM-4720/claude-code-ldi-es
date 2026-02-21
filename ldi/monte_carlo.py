@@ -186,6 +186,41 @@ def compute_terminal_stats(paths, k=None):
     return stats
 
 
+def certainty_equivalent(paths, gamma=None):
+    """Compute certainty equivalent of terminal funding ratio.
+
+    CE = ((1-gamma) * E[F_T^{1-gamma} / (1-gamma)])^{1/(1-gamma)}
+
+    For gamma > 1, (1-gamma) < 0, so careful sign handling is needed.
+    Paths where F_T <= 0 are excluded (would give infinity for gamma > 1).
+
+    Args:
+        paths: (n_paths, n_steps+1)
+        gamma: risk aversion (default: P.GAMMA)
+
+    Returns:
+        CE value (scalar)
+    """
+    if gamma is None:
+        gamma = P.GAMMA
+    Y_T = paths[:, -1]
+
+    # Exclude zero/negative terminal values (gamma > 1 → 0^{1-gamma} = inf)
+    mask = Y_T > 0
+    Y_T = Y_T[mask]
+
+    if len(Y_T) == 0:
+        return 0.0
+
+    one_minus_gamma = 1.0 - gamma
+    # U_i = F_T_i^{1-gamma} / (1-gamma)
+    U = Y_T ** one_minus_gamma / one_minus_gamma
+    EU = np.mean(U)
+    # CE = ((1-gamma) * EU)^{1/(1-gamma)}
+    CE = (one_minus_gamma * EU) ** (1.0 / one_minus_gamma)
+    return float(CE)
+
+
 def shortfall_prob_over_time(paths, k=None):
     """Compute P(Y_t < k) at each time step.
 

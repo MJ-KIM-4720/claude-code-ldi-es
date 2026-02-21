@@ -45,3 +45,15 @@
   - y0=0.8(underfunded): ES는 매우 보수적 (std=0.04), VaR는 공격적 (std=0.11) → gambling incentive 확인
   - y0=1.2(overfunded): 세 모델 거의 동일 → 제약 비결합 확인
 - **A clamp**: A를 [0, 5] 범위로 제한하여 수치 안정성 확보
+
+## 9. Welfare Analysis — Certainty Equivalent (2026-02)
+- **CE 정의**: `CE = ((1-γ) · E[F_T^{1-γ}/(1-γ)])^{1/(1-γ)}`
+  - γ=3일 때 (1-γ)=-2, 음수 거듭제곱 처리 필요
+  - F_T=0인 path 제외 (γ>1이면 0^{1-γ}=∞)
+- **Welfare cost**: `CE_loss = (CE_Merton - CE_model) / CE_Merton × 100%`
+- **F0=1.0 baseline 결과**:
+  - CE_ES = 0.9906, CE_VaR = 1.0055, CE_Merton = 1.0113
+  - CE loss: ES = 2.05%, VaR = 0.57%
+- **해석**: ES 제약이 VaR보다 welfare cost가 높지만, 이는 tail risk를 더 효과적으로 관리하는 대가
+  - ES는 expected shortfall이 0.0878로 VaR(0.1023)이나 Merton(0.1508)보다 낮음
+  - 즉, ES는 약간의 welfare를 희생하여 대규모 손실 방지
