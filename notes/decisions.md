@@ -46,6 +46,13 @@
   - y0=1.2(overfunded): 세 모델 거의 동일 → 제약 비결합 확인
 - **A clamp**: A를 [0, 5] 범위로 제한하여 수치 안정성 확보
 
+## 10. A_ES Clamping 조사 (2026-02)
+- **Explicit clamping 없음**: `min(A, 1.0)`, `np.clip(..., 1.0)` 등 ES A에 대한 상한 제한 코드 없음
+- **MC의 `np.clip(A, 0.0, 5.0)`** (monte_carlo.py:120)은 시뮬레이션 안정화 목적, 정적 그래프와 무관
+- **Implicit clamping**: `cross_sectional_A`에서 `if not binding: return 1.0` — 수학적으로 correct하지만 binding/non-binding 경계에서 미세한 불연속 발생 (0.999732 → 1.000000)
+- **Kink 원인**: explicit clamping이 아닌 Put option의 내재적 비선형성과 cross-sectional 분석의 독립적 threshold solving 구조에서 비롯
+- **A_ES 최대값**: 모든 파라미터 조합에서 A_ES <= 1.0 확인 (이론과 일치)
+
 ## 9. Welfare Analysis — Certainty Equivalent (2026-02)
 - **CE 정의**: `CE = ((1-γ) · E[F_T^{1-γ}/(1-γ)])^{1/(1-γ)}`
   - γ=3일 때 (1-γ)=-2, 음수 거듭제곱 처리 필요
