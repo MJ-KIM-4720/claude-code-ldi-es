@@ -490,7 +490,7 @@ def plot_group_B():
 # ── Group C: Expected Inflation (mu_I) ───────────────────────
 
 def plot_group_C():
-    mu_Is = [0.01, 0.023, 0.035, 0.05]
+    mu_Is = [0.015, 0.023, 0.035, 0.05]
     warm = WARM_PALETTE[:4]
 
     # C1: ES total allocation by mu_I — warm palette
