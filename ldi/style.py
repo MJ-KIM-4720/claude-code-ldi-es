@@ -114,3 +114,70 @@ def savefig(fig, path):
     """Save figure and close."""
     fig.savefig(path, dpi=DPI, bbox_inches='tight')
     plt.close(fig)
+
+
+# ═══════════════════════════════════════════════════════════
+# Paper-Specific Style (Journal Submission)
+# ═══════════════════════════════════════════════════════════
+
+# Warm palette for ES-only sensitivity figures (A1, B1, C1, D1, E1, C2, E2)
+# Dark red → bright yellow (small parameter → large parameter)
+WARM_PALETTE = ['#8B0000', '#D62728', '#FF6347', '#FFA500', '#FFD700']
+
+# Paper line styles: Merton linewidth = 1.5 (vs 2.0 in exploratory)
+PAPER_LINE_STYLES = {
+    'ES':     {'color': COLORS['ES'],     'linestyle': '-',  'linewidth': 2.5},
+    'VaR':    {'color': COLORS['VaR'],    'linestyle': '--', 'linewidth': 2.5},
+    'Merton': {'color': COLORS['Merton'], 'linestyle': ':',  'linewidth': 1.5},
+}
+
+# A=1 reference line: gray dotted, linewidth 1.0
+PAPER_REF_LINE = {'color': COLORS['Merton'], 'linestyle': ':', 'linewidth': 1.0}
+
+# Paper grid: explicit light gray color
+PAPER_GRID = {'alpha': 0.3, 'linewidth': 0.5, 'color': '#CCCCCC'}
+
+# Paper gambling region shading (light red)
+PAPER_GAMBLING = {'color': COLORS['ES'], 'alpha': 0.15}
+
+
+def apply_paper_style():
+    """Set matplotlib rcParams for paper submission figures.
+
+    Same as apply_style() but with white background enforced.
+    """
+    plt.rcParams.update({
+        'font.size':            13,
+        'axes.titlesize':       16,
+        'axes.titleweight':     'bold',
+        'axes.labelsize':       14,
+        'legend.fontsize':      12,
+        'xtick.labelsize':      12,
+        'ytick.labelsize':      12,
+        'figure.titlesize':     18,
+        'figure.titleweight':   'bold',
+        'font.family':          'serif',
+        'mathtext.fontset':     'cm',
+        'figure.dpi':           DPI,
+        'savefig.dpi':          DPI,
+        'savefig.bbox':         'tight',
+        'figure.facecolor':     'white',
+        'axes.facecolor':       'white',
+        'savefig.facecolor':    'white',
+    })
+
+
+def paper_grid(ax):
+    """Apply paper-style grid to an axes."""
+    ax.grid(True, **PAPER_GRID)
+
+
+def paper_hline(ax, value=1.0, label='Merton (A=1)'):
+    """Add A=1 reference horizontal line (paper style, lw=1.0)."""
+    ax.axhline(value, **PAPER_REF_LINE, label=label)
+
+
+def paper_savefig(fig, path):
+    """Save figure with paper settings and close."""
+    fig.savefig(path, dpi=DPI, bbox_inches='tight', facecolor='white')
+    plt.close(fig)
