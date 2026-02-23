@@ -8,6 +8,7 @@ Figures:
   2. Terminal distribution histogram
   3. Shortfall probability over time
   4. Sample paths
+  5. Welfare analysis terminal distribution (F0=1.0 only)
 """
 
 import os
@@ -54,6 +55,8 @@ def run_scenario(y0, tag=""):
         stats = MC.compute_path_stats(paths)
         tstats = MC.compute_terminal_stats(paths)
         sf_prob = MC.shortfall_prob_over_time(paths)
+        ce = MC.certainty_equivalent(paths)
+        tstats['CE'] = ce
         results[model] = {
             'paths': paths, 't_grid': t_grid,
             'stats': stats, 'tstats': tstats, 'sf_prob': sf_prob,
@@ -62,6 +65,7 @@ def run_scenario(y0, tag=""):
               f"E[Y_T]={tstats['mean']:.3f}  "
               f"P(Y_T<k)={tstats['shortfall_prob']:.3f}  "
               f"ES={tstats['expected_shortfall']:.4f}  "
+              f"CE={ce:.4f}  "
               f"({elapsed:.1f}s)")
 
     suffix = f"_y0{y0:.1f}".replace(".", "")
@@ -152,21 +156,69 @@ def run_scenario(y0, tag=""):
 
 
 def print_summary_table(all_results):
-    """Print comparison table across scenarios."""
-    print(f"\n{'='*70}")
+    """Print comparison table across scenarios (with CE column)."""
+    print(f"\n{'='*80}")
     print("  Summary Table")
-    print(f"{'='*70}")
-    header = f"  {'y0':>4} | {'Model':>6} | {'E[Y_T]':>7} | {'Std':>6} | {'P(short)':>8} | {'E[short]':>8} | {'Q05':>6} | {'Q95':>6}"
+    print(f"{'='*80}")
+    header = (f"  {'y0':>4} | {'Model':>6} | {'E[F_T]':>7} | {'Std':>6} | "
+              f"{'P(short)':>8} | {'E[short]':>8} | {'Median':>6} | {'CE':>7}")
     print(header)
-    print("  " + "-" * 66)
+    print("  " + "-" * 76)
     for y0, results in all_results.items():
         for model in MODELS:
             ts = results[model]['tstats']
             print(f"  {y0:>4.1f} | {LABELS[model]:>6} | "
                   f"{ts['mean']:>7.3f} | {ts['std']:>6.3f} | "
                   f"{ts['shortfall_prob']:>8.3f} | {ts['expected_shortfall']:>8.4f} | "
-                  f"{ts['q05']:>6.3f} | {ts['q95']:>6.3f}")
-        print("  " + "-" * 66)
+                  f"{ts['median']:>6.3f} | {ts['CE']:>7.4f}")
+        print("  " + "-" * 76)
+
+
+def print_welfare_cost(results):
+    """Print welfare cost analysis for a single scenario.
+
+    Welfare cost = (CE_Merton - CE_model) / CE_Merton * 100 (%).
+    """
+    ce_merton = results['merton']['tstats']['CE']
+    print(f"\n{'='*55}")
+    print("  Welfare Analysis (Certainty Equivalent)")
+    print(f"{'='*55}")
+    print(f"  {'Model':>6} | {'CE':>8} | {'CE Loss (%)':>12}")
+    print("  " + "-" * 35)
+    for model in MODELS:
+        ce = results[model]['tstats']['CE']
+        if ce_merton > 0:
+            loss = (ce_merton - ce) / ce_merton * 100.0
+        else:
+            loss = 0.0
+        print(f"  {LABELS[model]:>6} | {ce:>8.4f} | {loss:>11.2f}%")
+    print("  " + "-" * 35)
+
+
+def plot_welfare_terminal(results):
+    """Generate terminal distribution figure with CE values in legend.
+
+    F0=1.0 only. Saves to fig_mc_terminal_F10_welfare.png.
+    """
+    fig, ax = plt.subplots(figsize=FIGSIZES['single'])
+    for model in MODELS:
+        Y_T = results[model]['paths'][:, -1]
+        ce = results[model]['tstats']['CE']
+        Y_T_clip = np.clip(Y_T, 0, np.quantile(Y_T, 0.99))
+        ax.hist(Y_T_clip, bins=80, alpha=HIST_ALPHA, color=MC_COLORS[model],
+                label=f"{LABELS[model]} (CE={ce:.3f})",
+                density=True)
+    ax.axvline(P.k, color='green', linestyle='--', alpha=0.7, linewidth=1.5,
+               label=f'$k$={P.k}')
+    ax.set_xlabel('Terminal Funding Ratio $F_T$')
+    ax.set_ylabel('Density')
+    ax.set_title(f'Terminal Distribution with Welfare ($F_0$=1.0, $T$={P.T:.0f})')
+    ax.legend(**LEGEND)
+    setup_grid(ax)
+    fig.tight_layout()
+    path = os.path.join(OUT, "fig_mc_terminal_F10_welfare.png")
+    savefig(fig, path)
+    print(f"  Saved fig_mc_terminal_F10_welfare.png")
 
 
 def main():
@@ -184,6 +236,10 @@ def main():
         all_results[y0] = run_scenario(y0, tag)
 
     print_summary_table(all_results)
+
+    # Welfare analysis for F0=1.0
+    print_welfare_cost(all_results[1.0])
+    plot_welfare_terminal(all_results[1.0])
 
     print(f"\nAll MC figures saved to: {os.path.abspath(OUT)}/")
 
