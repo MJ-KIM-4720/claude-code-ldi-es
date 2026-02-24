@@ -105,7 +105,7 @@ def run_scenario(y0, tag=""):
     ax.axvline(P.k, **MERTON_LINE, label=f'k={P.k}')
     ax.set_xlabel('Terminal Funding Ratio $F_T$')
     ax.set_ylabel('Probability density')
-    ax.set_xlim(0.3, 1.6)
+    ax.set_xlim(0.3, 1.5)
     ax.set_title(f'Terminal Distribution ($F_0$={y0}, $T$={P.T:.0f})')
     ax.legend(**LEGEND)
     setup_grid(ax)

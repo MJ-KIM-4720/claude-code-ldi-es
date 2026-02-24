@@ -710,7 +710,7 @@ def run_mc_scenario(y0):
     ax.axvline(P.k, **MERTON_REF, label=f'k={P.k}')
     ax.set_xlabel('Terminal Funding Ratio $F_T$')
     ax.set_ylabel('Probability density')
-    ax.set_xlim(0.3, 1.6)
+    ax.set_xlim(0.3, 1.5)
     ax.legend(**LEGEND)
     paper_grid(ax)
     fig.tight_layout()
