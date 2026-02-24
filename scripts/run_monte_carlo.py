@@ -98,13 +98,14 @@ def run_scenario(y0, tag=""):
     for model in MODELS:
         Y_T = results[model]['paths'][:, -1]
         # Clip for histogram visibility
-        Y_T_clip = np.clip(Y_T, 0, np.quantile(Y_T, 0.99))
+        Y_T_clip = np.clip(Y_T, 0.3, 1.6)
         ax.hist(Y_T_clip, bins=80, alpha=HIST_ALPHA, color=MC_COLORS[model],
                 label=f"{LABELS[model]} ($\\mu$={results[model]['tstats']['mean']:.2f})",
                 density=True)
     ax.axvline(P.k, **MERTON_LINE, label=f'k={P.k}')
     ax.set_xlabel('Terminal Funding Ratio $F_T$')
-    ax.set_ylabel('Density')
+    ax.set_ylabel('Probability density')
+    ax.set_xlim(0.3, 1.6)
     ax.set_title(f'Terminal Distribution ($F_0$={y0}, $T$={P.T:.0f})')
     ax.legend(**LEGEND)
     setup_grid(ax)
