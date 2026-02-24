@@ -703,14 +703,14 @@ def run_mc_scenario(y0):
     fig, ax = plt.subplots(figsize=FIGSIZES['single'])
     for model in MODELS:
         Y_T = results[model]['paths'][:, -1]
-        Y_T_clip = np.clip(Y_T, 0.3, 1.6)
+        Y_T_clip = np.clip(Y_T, 0, np.quantile(Y_T, 0.99))
         ax.hist(Y_T_clip, bins=80, alpha=HIST_ALPHA, color=MC_COLORS[model],
                 label=f"{LABELS[model]} ($\\mu$={results[model]['tstats']['mean']:.2f})",
                 density=True)
     ax.axvline(P.k, **MERTON_REF, label=f'k={P.k}')
     ax.set_xlabel('Terminal Funding Ratio $F_T$')
     ax.set_ylabel('Probability density')
-    ax.set_xlim(0.3, 1.6)
+    ax.set_xlim(0.3, 1.5)
     ax.legend(**LEGEND)
     paper_grid(ax)
     fig.tight_layout()
