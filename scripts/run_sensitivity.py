@@ -247,7 +247,7 @@ def plot_group_B():
 # ═══════════════════════════════════════════════════════════
 
 def plot_group_C():
-    mu_Is = [0.01, 0.023, 0.035, 0.05]
+    mu_Is = [0.02, 0.023, 0.035, 0.05]
     colors = COLORS['param_values'][:4]
 
     # --- Figure C1: ES total allocation by mu_I ---
@@ -464,7 +464,7 @@ def generate_summary_table():
                          es[3], va[3]])
 
     # Group C: mu_I
-    for mu_I in [0.01, 0.023, 0.035, 0.05]:
+    for mu_I in [0.02, 0.023, 0.035, 0.05]:
         with override_params(MU_I=mu_I):
             for f in F_sample:
                 es = safe_es_portfolio(f)
