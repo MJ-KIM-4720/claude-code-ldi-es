@@ -19,6 +19,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.stats import gaussian_kde
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -93,20 +94,31 @@ def run_scenario(y0, tag=""):
     savefig(fig, path)
     print(f"  Saved mc_fan{suffix}.png")
 
-    # ── Figure 2: Terminal distribution ───────────────────
+    # ── Figure 2: Terminal distribution with KDE overlay ──
     fig, ax = plt.subplots(figsize=FIGSIZES['single'])
+    kde_linestyles = {'es': '-', 'var': '--', 'merton': ':'}
     for model in MODELS:
         Y_T = results[model]['paths'][:, -1]
-        # Clip for histogram visibility
-        Y_T_clip = np.clip(Y_T, 0, np.quantile(Y_T, 0.99))
-        ax.hist(Y_T_clip, bins=80, alpha=HIST_ALPHA, color=MC_COLORS[model],
-                label=f"{LABELS[model]} ($\\mu$={results[model]['tstats']['mean']:.2f})",
+        ts = results[model]['tstats']
+        # Clip outliers to [0, 1.8] for visibility
+        Y_T_clip = np.clip(Y_T, 0, 1.8)
+        # Histogram with low alpha (KDE is the primary visual)
+        ax.hist(Y_T_clip, bins=80, alpha=0.3, color=MC_COLORS[model],
                 density=True)
+        # KDE overlay
+        kde = gaussian_kde(Y_T_clip)
+        x_kde = np.linspace(0.3, 1.8, 500)
+        ax.plot(x_kde, kde(x_kde), color=MC_COLORS[model], lw=2,
+                linestyle=kde_linestyles[model],
+                label=(f"{LABELS[model]} "
+                       f"(med={ts['median']:.2f}, "
+                       f"shortfall={ts['expected_shortfall']:.3f})"))
     ax.axvline(P.k, **MERTON_LINE, label=f'k={P.k}')
     ax.set_xlabel('Terminal Funding Ratio $F_T$')
-    ax.set_ylabel('Probability density')
-    ax.set_xlim(0.3, 1.5)
-    ax.set_title(f'Terminal Distribution ($F_0$={y0}, $T$={P.T:.0f})')
+    ax.set_ylabel('Density')
+    ax.set_xlim(0.3, 1.8)
+    ax.set_title(f'Terminal Funding Ratio Distribution '
+                 f'($F_0 = {y0}$, $N = 10\\,000$, $T = {P.T:.0f}$)')
     ax.legend(**LEGEND)
     setup_grid(ax)
     fig.tight_layout()
