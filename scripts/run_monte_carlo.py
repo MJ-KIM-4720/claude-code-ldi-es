@@ -100,13 +100,12 @@ def run_scenario(y0, tag=""):
     for model in MODELS:
         Y_T = results[model]['paths'][:, -1]
         ts = results[model]['tstats']
-        # Clip outliers to [0, 1.8] for visibility
-        Y_T_clip = np.clip(Y_T, 0, 1.8)
+        # No clipping — let xlim handle visible range
         # Histogram with low alpha (KDE is the primary visual)
-        ax.hist(Y_T_clip, bins=80, alpha=0.3, color=MC_COLORS[model],
-                density=True)
+        ax.hist(Y_T, bins=100, range=(0.2, 2.0), alpha=0.3,
+                color=MC_COLORS[model], density=True)
         # KDE overlay
-        kde = gaussian_kde(Y_T_clip)
+        kde = gaussian_kde(Y_T)
         x_kde = np.linspace(0.3, 1.8, 500)
         ax.plot(x_kde, kde(x_kde), color=MC_COLORS[model], lw=2,
                 linestyle=kde_linestyles[model],
