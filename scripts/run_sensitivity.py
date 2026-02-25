@@ -268,7 +268,29 @@ def plot_group_C():
     savefig(fig, path)
     print("  Saved fig_C1_muI_es.png")
 
-    # --- Figure C2: Stock vs IIB allocation (1x2 subplots) ---
+    # --- Figure C2: ES vs VaR total allocation (2x2 subplots) ---
+    fig, axes = plt.subplots(2, 2, figsize=FIGSIZES['quad'])
+    for ax, mu_I in zip(axes.flat, mu_Is):
+        with override_params(MU_I=mu_I):
+            es_tot = compute_es_totals(F_RANGE)
+            var_tot = compute_var_totals(F_RANGE)
+            merton = P.Pi_star.sum()
+            ax.plot(F_RANGE, es_tot, label='ES', **LINE_STYLES['ES'])
+            ax.plot(F_RANGE, var_tot, label='VaR', **LINE_STYLES['VaR'])
+            add_merton_hline(ax, merton, f'Merton ({merton:.2f})')
+            ax.set_title(fr'$\mu_I = {mu_I}$')
+            ax.set_xlabel('Funding Ratio $F(t)$')
+            ax.set_ylabel('Total Risky Allocation')
+            ax.legend(**LEGEND)
+            setup_grid(ax)
+            ax.set_xlim(0.5, 1.3)
+    fig.suptitle(r'ES vs VaR: Total Risky Allocation by Expected Inflation ($\mu_I$)')
+    plt.tight_layout()
+    path = os.path.join(OUT, 'fig_C2_muI_compare.png')
+    savefig(fig, path)
+    print("  Saved fig_C2_muI_compare.png")
+
+    # --- Figure C2 appendix: Stock vs IIB allocation (1x2 subplots) ---
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=FIGSIZES['triple'])
     for mu_I, color in zip(mu_Is, colors):
         with override_params(MU_I=mu_I):
@@ -294,9 +316,9 @@ def plot_group_C():
 
     fig.suptitle(r'ES Constraint: Stock vs IIB by Expected Inflation ($\mu_I$)')
     plt.tight_layout()
-    path = os.path.join(OUT, 'fig_C2_muI_components.png')
+    path = os.path.join(OUT, 'fig_C2_muI_components_appendix.png')
     savefig(fig, path)
-    print("  Saved fig_C2_muI_components.png")
+    print("  Saved fig_C2_muI_components_appendix.png")
 
 
 # ═══════════════════════════════════════════════════════════
