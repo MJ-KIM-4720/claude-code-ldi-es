@@ -2,5 +2,12 @@ __pycache__/
 *.egg-info/
 *.pyc
 .pytest_cache/
-outputs/
 results/figures/
+
+# outputs/ is scratch by convention, EXCEPT the two presentation modes of the
+# 2026-08 recompute — those are the deliverable and are tracked so they survive
+# an ephemeral working environment. Regenerate with scripts/run_recompute.py.
+outputs/*
+!outputs/cross_sectional/
+!outputs/fixed_claim/
+!outputs/common/

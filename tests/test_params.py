@@ -18,10 +18,22 @@ class TestBaseParameters:
 
     def test_constraint_defaults(self):
         assert P.alpha == 0.10
-        assert P.epsilon == 0.05
+        assert P.epsilon == 0.10      # 2026-08: 0.05 was below the feasibility floor
         assert P.T == 10.0
         assert P.k == 1.0
         assert P.GAMMA == 3.0
+        assert P.F0 == 1.0
+
+    def test_baseline_epsilon_is_feasible_and_binding(self):
+        """baseline eps는 (eps_min, eps_M) 안에 있어야 한다."""
+        lo, hi = P.eps_band()
+        assert lo < P.epsilon < hi
+        assert (lo, hi) == pytest.approx((0.0876289, 0.1526135), abs=1e-6)
+
+    def test_eps_grid_inside_band(self):
+        lo, hi = P.eps_band()
+        for e in P.EPS_GRID:
+            assert lo < e <= hi + 1e-12
 
 
 class TestDerivedQuantities:
