@@ -12,6 +12,8 @@ IMPORTANT: R=0.02 (real rate), r=0.04 (nominal rate).
 import contextlib
 import numpy as np
 
+from .bs_utils import bs_put
+
 # ── Market ──────────────────────────────────────────────
 MU_S    = 0.08      # Stock expected return
 SIGMA_S = 0.18      # Stock volatility
@@ -31,11 +33,20 @@ GAMMA   = 3.0       # CRRA risk aversion
 # ── Constraint ──────────────────────────────────────────
 k       = 1.0       # Target funding ratio
 alpha   = 0.10      # VaR confidence level  P(F_T < k) <= alpha
-epsilon = 0.05      # ES budget             E^Q[(k-F_T)^+ e^{-r̃T}] <= epsilon
+epsilon = 0.10      # ES budget             E^Q[(k-F_T)^+ e^{-r̃T}] <= epsilon
+                    #   NOTE: must satisfy eps_min < epsilon < eps_merton.
+                    #   Baseline feasible band = (0.087629, 0.152614).
+                    #   The pre-2026-08 value 0.05 was INFEASIBLE (no
+                    #   admissible strategy attains it) — see NOTES.md.
 T       = 10.0      # Horizon (years)
 
 # ── Initial condition ───────────────────────────────────
-y0      = 1.0       # Initial funding ratio (default)
+F0      = 1.0       # Initial funding ratio of the fund (budget)
+y0      = 1.0       # Backward-compatible alias of F0
+
+# ── Analysis grids ──────────────────────────────────────
+# epsilon grid for sensitivity: inside the baseline feasible band
+EPS_GRID = [0.09, 0.10, 0.11, 0.12, 0.135, 0.15]
 
 
 # ═══════════════════════════════════════════════════════════
@@ -137,6 +148,42 @@ def override_params(**kwargs):
 
 
 # ═══════════════════════════════════════════════════════════
+# ES feasibility band  (eps_min, eps_M)
+# ═══════════════════════════════════════════════════════════
+
+def eps_min(F0_=None):
+    """Feasibility floor of the ES budget.
+
+    From the budget constraint E^Q[e^{-r̃T} F_T] <= F0 and the pointwise
+    bound (k - F_T)^+ >= k - F_T,
+
+        E^Q[e^{-r̃T}(k-F_T)^+] >= k·e^{-r̃T} - E^Q[e^{-r̃T}F_T] >= k·e^{-r̃T} - F0
+
+    so NO admissible strategy can push the Q-expected shortfall below
+
+        eps_min = max(k·e^{-r̃T} - F0, 0).
+    """
+    if F0_ is None:
+        F0_ = F0
+    return max(k * np.exp(-r_tilde * T) - F0_, 0.0)
+
+
+def eps_merton(F0_=None):
+    """ES budget consumed by the unconstrained Merton claim g(y) = y.
+
+    Equals Put(F0, k): for eps >= eps_M the constraint is slack.
+    """
+    if F0_ is None:
+        F0_ = F0
+    return float(bs_put(F0_, k, r_tilde, sigma_Y, T))
+
+
+def eps_band(F0_=None):
+    """(eps_min, eps_M) — the open interval of binding-and-feasible budgets."""
+    return eps_min(F0_), eps_merton(F0_)
+
+
+# ═══════════════════════════════════════════════════════════
 # Summary
 # ═══════════════════════════════════════════════════════════
 
@@ -150,6 +197,14 @@ def print_params():
     print(f"  Liab:    beta_0={BETA_0}, beta_1={BETA_1}")
     print(f"  Pref:    gamma={GAMMA}")
     print(f"  Constr:  k={k}, alpha={alpha}, epsilon={epsilon}, T={T}")
+    print(f"  Budget:  F0={F0}")
+    print("-" * 55)
+    e_lo, e_hi = eps_band()
+    ok = "FEASIBLE & BINDING" if e_lo < epsilon < e_hi else (
+        "INFEASIBLE" if epsilon <= e_lo else "SLACK (-> Merton)")
+    print(f"  ES band: eps_min  = {e_lo:.6f}   (= max(k e^-r̃T - F0, 0))")
+    print(f"           eps_M    = {e_hi:.6f}   (= Put(F0, k))")
+    print(f"           epsilon  = {epsilon:.6f}   [{ok}]")
     print("-" * 55)
     print(f"  Derived: r_tilde  = {r_tilde:.4f}")
     print(f"           sigma_Y  = {sigma_Y:.4f}")

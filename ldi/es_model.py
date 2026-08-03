@@ -1,133 +1,237 @@
 """
-ES-Constrained LDI Model
-==========================
-Based on Kraft & Steffensen (2013) option-based approach.
+ES-Constrained LDI Model  (joint budget + constraint system)
+=============================================================
+Kraft & Steffensen (2013) option-based approach, solved as the *joint*
+system that the fund actually faces.
 
 Constraint:
     E^Q[e^{-r̃T}(k - F_T)^+] <= epsilon
 
-Claim function:
-    g_ES(y) = c·y      if y < k_eps       (partial protection)
-              k         if k_eps <= y < k   (boost to target)
-              y         if y >= k           (unconstrained)
+Claim function (fixed at t=0):
+    g_ES(y) = c·y      if y < k_eps       (partial linear protection)
+              k        if k_eps <= y < k  (boost to target)
+              y        if y >= k          (unconstrained)
+    with c = k / k_eps > 1
 
-    where c = k / k_eps > 1
+Present value of the claim:
+    Psi_ES(t,y) = y + Put(y,k) - c·Put(y,k_eps)          (tau = T-t)
 
-Option decomposition:
-    g(y) = y + Put(k) - c·Put(k_eps)
+────────────────────────────────────────────────────────────
+THE JOINT SYSTEM  (this replaces the old single-equation solver)
+────────────────────────────────────────────────────────────
+The reference process start Y0 is NOT the funding ratio F0. The pair
+(Y0, k_eps) is pinned down by two equations:
 
-Present value:
-    Psi_ES = y + Put(y, k) - c·Put(y, k_eps)
+    (budget)   Psi_ES(0, Y0) = F0
+    (binding)  (k/k_eps)·Put(Y0, k_eps) = epsilon
 
-Binding condition:
-    c · Put(y0, k_eps) = epsilon
+They decouple: substituting (binding) into (budget) gives
 
-Key property: A(y0) <= 1 always (no gambling incentive).
+    (A)  Y0 + Put(0, Y0, k) = F0 + epsilon
+
+whose LHS is strictly increasing in Y0 (derivative N(d1) > 0) with
+infimum k·e^{-r̃T} as Y0 -> 0.  Hence:
+
+  * Step 1: solve (A) for Y0.
+  * Step 2: solve (binding) for k_eps at that fixed Y0.
+            LHS is strictly increasing in k_eps since
+            d/dK [Put(y,K)/K] = y·N(-d1)/K² > 0.
+
+FEASIBILITY.  (A) has a root iff F0 + epsilon > k·e^{-r̃T}, i.e.
+
+    epsilon > eps_min := max(k·e^{-r̃T} - F0, 0)
+
+which is exactly the budget-implied floor on the Q-expected shortfall
+(see params.eps_min). Below the floor the problem has NO solution — the
+old baseline epsilon = 0.05 sat there.
+
+SLACK.  If epsilon >= eps_M := Put(F0, k), the Merton claim already
+satisfies the constraint: Y0 = F0, k_eps = k, c = 1, A ≡ 1.
+
+Key structural property (wedge identity, exact):
+    Psi - y·Psi_y = k·e^{-r̃τ}·[N(-d2(y,k)) - N(-d2(y,k_eps))] > 0
+  =>  0 < A_ES = y·Psi_y / Psi < 1  everywhere: no gambling incentive.
 """
 
 import numpy as np
 from scipy.stats import norm
 from scipy.optimize import brentq
 
-from .bs_utils import bs_put, bs_d1
+from .bs_utils import bs_put, bs_d1, bs_d2
 from . import params as P
+from .params import eps_min, eps_merton, eps_band     # re-export
+
+
+class InfeasibleError(ValueError):
+    """Raised when the ES budget is below the budget-implied floor eps_min."""
 
 
 # ═══════════════════════════════════════════════════════════
-# Threshold solver
+# Joint solver
 # ═══════════════════════════════════════════════════════════
 
-def solve_threshold(y0, eps=None):
-    """Solve for k_eps given initial funding ratio y0.
+def solve_es(F0=None, eps=None, strict=True):
+    """Solve the joint (budget, binding-ES) system for (Y0, k_eps).
 
-    Binding condition: c · Put(y0, k_eps) = eps
-      where c = k / k_eps
+    Args:
+        F0:   initial funding ratio (budget). Default P.F0.
+        eps:  ES budget. Default P.epsilon.
+        strict: if False, an infeasible eps returns feasible=False instead
+                of raising (useful for scanning sensitivity grids).
 
-    Returns:
-        (k_eps, c, is_binding)
+    Returns dict with keys:
+        Y0, k_eps, c, eps_min, eps_M, feasible, binding, eps, F0
     """
+    if F0 is None:
+        F0 = P.F0
     if eps is None:
         eps = P.epsilon
 
-    # Check if constraint binds: Put(y0, k) > eps?
-    put_k = bs_put(y0, P.k, P.r_tilde, P.sigma_Y, P.T)
-    if put_k <= eps:
-        return P.k, 1.0, False     # non-binding → Merton
+    k, rt, sig, T = P.k, P.r_tilde, P.sigma_Y, P.T
+    e_lo = P.eps_min(F0)
+    e_hi = P.eps_merton(F0)
 
-    # Solve: (k/k_eps) · Put(y0, k_eps) = eps  on (0, k)
-    def residual(ke):
-        return (P.k / ke) * bs_put(y0, ke, P.r_tilde, P.sigma_Y, P.T) - eps
+    out = dict(F0=F0, eps=eps, eps_min=e_lo, eps_M=e_hi)
 
-    k_eps = brentq(residual, 1e-12, P.k - 1e-12, xtol=1e-14)
-    c = P.k / k_eps
-    return k_eps, c, True
+    # ── Infeasible: no admissible strategy attains this budget ──
+    if eps <= e_lo:
+        if strict:
+            raise InfeasibleError(
+                f"eps = {eps:.6f} <= eps_min = {e_lo:.6f} "
+                f"(= max(k·e^-r̃T - F0, 0) with k={k}, r̃={rt:.6f}, "
+                f"T={T}, F0={F0}). No admissible strategy can attain a "
+                f"Q-expected shortfall this low: the budget constraint "
+                f"E^Q[e^-r̃T F_T] <= F0 forbids it."
+            )
+        out.update(Y0=np.nan, k_eps=np.nan, c=np.nan,
+                   feasible=False, binding=True)
+        return out
+
+    # ── Slack: Merton already satisfies the constraint ──
+    if eps >= e_hi:
+        out.update(Y0=F0, k_eps=k, c=1.0, feasible=True, binding=False)
+        return out
+
+    # ── Step 1: budget-substituted equation (A) for Y0 ──
+    def f_budget(y):
+        return y + bs_put(y, k, rt, sig, T) - (F0 + eps)
+
+    hi = F0 + eps                       # f(hi) = Put(hi,k) > 0
+    lo = 1e-14 * hi
+    while f_budget(lo) > 0 and lo > 1e-300:
+        lo *= 1e-3
+    Y0 = brentq(f_budget, lo, hi, xtol=1e-16, rtol=8.9e-16, maxiter=200)
+
+    # ── Step 2: binding ES condition for k_eps at fixed Y0 ──
+    def f_constraint(ke):
+        return (k / ke) * bs_put(Y0, ke, rt, sig, T) - eps
+
+    hi_k = k * (1.0 - 1e-14)            # f(k) = Put(Y0,k) - eps > 0 since Y0 < F0
+    lo_k = min(1e-10, Y0 * 1e-6)
+    while f_constraint(lo_k) > 0 and lo_k > 1e-300:
+        lo_k *= 1e-3
+    k_eps = brentq(f_constraint, lo_k, hi_k, xtol=1e-16, rtol=8.9e-16,
+                   maxiter=200)
+
+    out.update(Y0=Y0, k_eps=k_eps, c=k / k_eps, feasible=True, binding=True)
+    return out
+
+
+def solve_threshold(F0=None, eps=None):
+    """Convenience wrapper: (Y0, k_eps, c, binding)."""
+    s = solve_es(F0, eps)
+    return s['Y0'], s['k_eps'], s['c'], s['binding']
 
 
 # ═══════════════════════════════════════════════════════════
-# Present value & derivatives
+# Claim, present value & derivatives
 # ═══════════════════════════════════════════════════════════
+
+def claim(y, k_eps, c):
+    """Terminal payoff g_ES(y) = min(c·y, k) for y < k, else y."""
+    y = np.asarray(y, dtype=float)
+    return np.where(y >= P.k, y, np.minimum(c * y, P.k))
+
 
 def psi(Y, k_eps, c, tau=None):
-    """Present value of ES claim: Psi = Y + Put(Y,k) - c·Put(Y,k_eps)
-
-    Args:
-        Y: current funding ratio
-        k_eps, c: threshold and multiplier from solve_threshold
-        tau: time to maturity (default: T)
-    """
+    """Psi_ES(t,y) = y + Put(y,k) - c·Put(y,k_eps),  tau = T - t."""
     if tau is None:
         tau = P.T
-    P_k  = bs_put(Y, P.k,  P.r_tilde, P.sigma_Y, tau)
+    Y = np.asarray(Y, dtype=float)
+    if np.isscalar(tau) and tau <= 0:
+        return claim(Y, k_eps, c)
+    P_k = bs_put(Y, P.k, P.r_tilde, P.sigma_Y, tau)
     P_ke = bs_put(Y, k_eps, P.r_tilde, P.sigma_Y, tau)
     return Y + P_k - c * P_ke
 
 
 def dpsi_dy(Y, k_eps, c, tau=None):
-    """∂Psi/∂y = 1 - N(-d1(k)) + c·N(-d1(k_eps))
+    """dPsi/dy = 1 - N(-d1(k)) + c·N(-d1(k_eps)) = N(d1(k)) + c·N(-d1(k_eps))."""
+    if tau is None:
+        tau = P.T
+    Y = np.asarray(Y, dtype=float)
+    d1_k = bs_d1(Y, P.k, P.r_tilde, P.sigma_Y, tau)
+    d1_ke = bs_d1(Y, k_eps, P.r_tilde, P.sigma_Y, tau)
+    return norm.cdf(d1_k) + c * norm.cdf(-d1_ke)
 
-    = 1 + Delta_Put(k) - c·Delta_Put(k_eps)
+
+def wedge(Y, k_eps, c, tau=None):
+    """Psi - y·Psi_y = k·e^{-r̃τ}·[N(-d2(y,k)) - N(-d2(y,k_eps))] >= 0.
+
+    Exact identity (uses c·k_eps = k). Positivity of the wedge is what
+    forces A_ES < 1.
     """
     if tau is None:
         tau = P.T
-    d1_k  = bs_d1(Y, P.k,  P.r_tilde, P.sigma_Y, tau)
-    d1_ke = bs_d1(Y, k_eps, P.r_tilde, P.sigma_Y, tau)
-    return 1.0 - norm.cdf(-d1_k) + c * norm.cdf(-d1_ke)
+    Y = np.asarray(Y, dtype=float)
+    d2_k = bs_d2(Y, P.k, P.r_tilde, P.sigma_Y, tau)
+    d2_ke = bs_d2(Y, k_eps, P.r_tilde, P.sigma_Y, tau)
+    return P.k * np.exp(-P.r_tilde * tau) * (norm.cdf(-d2_k) - norm.cdf(-d2_ke))
 
 
 # ═══════════════════════════════════════════════════════════
-# Adjustment factor & optimal strategy
+# Adjustment factor & optimal strategy  (FIXED CLAIM)
 # ═══════════════════════════════════════════════════════════
 
 def adjustment_factor(Y, k_eps, c, tau=None):
-    """A = (Y / Psi) · (dPsi/dy)
+    """A_ES(t,y) = y·Psi_y / Psi, evaluated as 1 - wedge/Psi.
 
-    Multiply by Pi_star to get constrained portfolio:
-        pi* = A · Pi_star
+    This is the delta-hedging exposure of a claim FIXED at t=0. Do NOT
+    re-solve k_eps as y moves — that would price a different claim at
+    every state.
+
+    The wedge form is algebraically identical to y·Psi_y/Psi but better
+    conditioned: the direct form differences two nearly equal quantities
+    in the tails and can round to 1 + O(1e-15), whereas the closed-form
+    wedge k·e^{-r̃τ}[N(-d2(k)) - N(-d2(k_eps))] is computed without
+    cancellation, so A <= 1 holds to machine precision rather than by
+    clamping.
     """
-    psi_val = psi(Y, k_eps, c, tau)
-    dpsi_val = dpsi_dy(Y, k_eps, c, tau)
-    return (Y / psi_val) * dpsi_val
+    return 1.0 - wedge(Y, k_eps, c, tau) / psi(Y, k_eps, c, tau)
 
 
 def optimal_portfolio(Y, k_eps, c, tau=None):
-    """pi*_S, pi*_I = A · Pi_star"""
+    """pi*_S, pi*_I = A · Pi_star."""
     A = adjustment_factor(Y, k_eps, c, tau)
     return A * P.Pi_star[0], A * P.Pi_star[1]
 
 
 # ═══════════════════════════════════════════════════════════
-# Cross-sectional convenience
+# Cross-sectional convenience (t=0, one fund per F0)
 # ═══════════════════════════════════════════════════════════
 
-def cross_sectional_A(y0, eps=None):
-    """Adjustment factor for a fund starting at y0.
+def cross_sectional_A(F0, eps=None, strict=True):
+    """Initial adjustment factor A_ES(0, Y0) for a fund with budget F0.
 
-    Each fund solves its own threshold.
+    Each fund solves its own joint system. Returns np.nan when the fund's
+    (F0, eps) pair is infeasible and strict=False.
     """
-    k_eps, c, binding = solve_threshold(y0, eps)
-    if not binding:
+    s = solve_es(F0, eps, strict=strict)
+    if not s['feasible']:
+        return np.nan
+    if not s['binding']:
         return 1.0
-    return adjustment_factor(y0, k_eps, c)
+    return float(adjustment_factor(s['Y0'], s['k_eps'], s['c'], P.T))
 
 
 # ═══════════════════════════════════════════════════════════
@@ -138,32 +242,20 @@ if __name__ == "__main__":
     P.print_params()
     print()
 
-    # Solve for default y0
-    k_eps, c, binding = solve_threshold(P.y0)
-    verify = c * bs_put(P.y0, k_eps, P.r_tilde, P.sigma_Y, P.T)
-
-    print(f"ES Constraint (epsilon = {P.epsilon})")
-    print(f"  k_eps   = {k_eps:.6f}")
-    print(f"  c       = {c:.6f}")
-    print(f"  binding = {binding}")
-    print(f"  verify: c·Put(y0,k_eps) = {verify:.8f}")
+    s = solve_es()
+    print(f"ES joint solution (F0={s['F0']}, eps={s['eps']})")
+    for key in ('eps_min', 'eps_M', 'Y0', 'k_eps', 'c'):
+        print(f"  {key:8s} = {s[key]:.6f}")
+    print(f"  budget residual     = "
+          f"{psi(s['Y0'], s['k_eps'], s['c']) - s['F0']:+.3e}")
+    print(f"  constraint residual = "
+          f"{s['c'] * bs_put(s['Y0'], s['k_eps'], P.r_tilde, P.sigma_Y, P.T) - s['eps']:+.3e}")
     print()
 
-    # Time-series: fixed threshold, varying Y
-    print("Time-series allocation (fixed threshold from y0=1.0):")
-    print(f"  {'Y':>6} | {'A':>7} | {'pi_S':>7} | {'pi_I':>7} | {'Total':>7}")
-    print("  " + "-" * 46)
-    for Y in [0.3, 0.5, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.5, 2.0]:
-        A = adjustment_factor(Y, k_eps, c)
-        ps, pi = A * P.Pi_star[0], A * P.Pi_star[1]
-        print(f"  {Y:>6.2f} | {A:>7.4f} | {ps:>6.1%} | {pi:>6.1%} | {ps+pi:>6.1%}")
-
-    # Cross-sectional: each fund has own threshold
-    print()
-    print("Cross-sectional allocation (each y0 solves own threshold):")
-    print(f"  {'y0':>6} | {'A':>7} | {'Total':>7} | {'k_eps':>8} | {'bind':>5}")
-    print("  " + "-" * 46)
-    for y0 in [0.3, 0.5, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.5, 2.0]:
-        ke, cc, b = solve_threshold(y0)
-        A = cross_sectional_A(y0)
-        print(f"  {y0:>6.2f} | {A:>7.4f} | {A*P.Pi_star.sum():>6.1%} | {ke:>8.4f} | {'Y' if b else 'N':>5}")
+    print("Fixed-claim exposure A_ES(t,y) (claim fixed at t=0):")
+    print(f"  {'y':>6} |" + "".join(f" {'t='+str(t):>9}" for t in (0, 2.5, 5, 7.5)))
+    print("  " + "-" * 48)
+    for y in [0.2, 0.4, 0.6, 0.8, 1.0, 1.5, 2.0, 2.5]:
+        row = "".join(f" {float(adjustment_factor(y, s['k_eps'], s['c'], P.T - t)):>9.4f}"
+                      for t in (0, 2.5, 5, 7.5))
+        print(f"  {y:>6.2f} |{row}")

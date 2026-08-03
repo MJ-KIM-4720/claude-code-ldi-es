@@ -1,5 +1,41 @@
 # 모델링 결정 기록
 
+## 11. Joint system + fixed claim 으로 전면 재설계 (2026-08) ★
+아래 1~10 중 ES/VaR 해법과 MC 관련 항목은 이 결정으로 **대체되었다**.
+상세 숫자는 저장소 루트 `NOTES.md` 참조.
+
+**(a) Feasibility floor.** budget `E^Q[e^{-r̃T}F_T] ≤ F0` 와
+`(k-F_T)^+ ≥ k-F_T` 로부터 `ε ≥ ε_min = max(k·e^{-r̃T} − F0, 0)`.
+baseline에서 ε_min = 0.087629 이므로 **기존 baseline ε=0.05는 해가 없는
+문제였다**. 새 baseline ε=0.10 (feasible 구간 (0.087629, 0.152614)).
+→ `params.eps_min/eps_merton/eps_band`, `es_model.InfeasibleError`.
+
+**(b) Joint system.** Y0는 F0가 아니다. `(Y0, k_ε)`는
+`Ψ_ES(0,Y0)=F0` 와 `(k/k_ε)·Put(0,Y0,k_ε)=ε` 의 연립해.
+두 식은 decouple된다: binding을 budget에 대입하면
+`Y0 + Put(0,Y0,k) = F0 + ε` (LHS가 Y0에 대해 strictly increasing,
+하한 k·e^{-r̃T}) → Y0를 먼저 풀고, 고정된 Y0에서 k_ε를 푼다.
+nested bisection 불필요. VaR도 동일 (k_α = λ(α)·Y0 를 budget에 대입).
+
+**(c) Fixed claim.** `A(t,y)=y·Ψ_y/Ψ` 는 t=0에 확정된 claim의 delta다.
+경로 위나 그림 위에서 y가 바뀔 때마다 threshold를 재계산하면 매 상태에서
+다른 claim을 가격하는 셈이 된다 → 금지. MC는 reference process Y만
+exact GBM으로 굴리고 `F_t = Ψ(t,Y_t)` 로 매핑한다.
+
+**(d) A_ES를 wedge form으로 계산.** `A = 1 − wedge/Ψ`,
+`wedge = Ψ − y·Ψ_y = k·e^{-r̃τ}[N(−d2(k)) − N(−d2(k_ε))]` (정확한 항등식).
+직접식 `y·Ψ_y/Ψ` 은 tail에서 상쇄오차로 1+O(1e−15)를 낼 수 있다.
+wedge form은 상쇄가 없어 clamping 없이 A ≤ 1 이 기계정밀도로 성립.
+
+**(e) VaR feasibility = quantile-hedging cost.**
+`C_VaR(α) = k·e^{-r̃T}·N(d2(1,λ(α)))` (Neyman–Pearson: Q-측도에서 가장 싼
+(1−α) 상태 집합 = {Y_T ≥ k_α}). baseline에서 0.766 < F0=1 로 여유롭게
+feasible — ES의 빠듯한 floor와 대비되며 그 자체가 논문 포인트.
+
+**(f) VaR matching = equal-CE 기본.** MC CE loss를 ES와 같게 만드는 α를
+common random numbers 위에서 이분법으로 탐색 (α=0.0856). 기존
+threshold matching (k_α=k_ε → α=0.1067)은 robustness로 병행 보고.
+
 ## 1. Option-Based Approach (Kraft & Steffensen 2013)
 - VaR/ES 제약을 option payoff로 분해하여 closed-form 해 도출
 - 장점: Monte Carlo 없이 정확한 최적 전략 계산 가능
