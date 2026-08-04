@@ -9,18 +9,16 @@ $N = 1{,}000{,}000$ simulated terminal draws)}
 Strategy & $\mathrm{E}[F_T]$ & $\mathrm{Std}[F_T]$ & $\mathrm{P}(F_T<k)$
  & shortfall & shortfall & $Q_{5}$ & mean $F_T$ & CE & loss (\%) \\
 \midrule
-  Merton & 1.1062 & 0.2784 & 0.3889 & 0.0593 & 0.1524 & 0.7137 & 0.6462 & 1.0088 & 0.000 \\
-  ES ($\varepsilon=0.1$) & 1.0155 & 0.1469 & 0.2473 & 0.0324 & 0.1308 & 0.7882 & 0.7136 & 0.9857 & 2.275 \\
-  VaR ($\alpha=0.1$) & 1.0703 & 0.2238 & 0.0996 & 0.0359 & 0.3608 & 0.6539 & 0.5921 & 0.9928 & 1.597 \\
-  VaR equal-CE ($\alpha=0.08118$) & 1.0576 & 0.2072 & 0.0807 & 0.0319 & 0.3950 & 0.6342 & 0.5742 & 0.9860 & 2.275 \\
-  VaR threshold-matched ($\alpha=0.10666$) & 1.0738 & 0.2286 & 0.1063 & 0.0373 & 0.3504 & 0.6594 & 0.5970 & 0.9946 & 1.415 \\
+  Merton & 1.1062 & 0.2784 & 0.3889 & 0.0593 & 0.1524 & 0.7137 & 0.6462 & 1.0082 & 0.000 \\
+  ES ($\varepsilon=0.1$) & 1.0155 & 0.1469 & 0.2473 & 0.0324 & 0.1308 & 0.7882 & 0.7136 & 0.9853 & 2.275 \\
+  VaR ($\alpha=0.1$) & 1.0703 & 0.2238 & 0.0996 & 0.0359 & 0.3608 & 0.6539 & 0.5921 & 0.9921 & 1.597 \\
+  VaR equal-CE ($\alpha=0.08118$) & 1.0576 & 0.2072 & 0.0807 & 0.0319 & 0.3950 & 0.6342 & 0.5742 & 0.9853 & 2.275 \\
+  VaR threshold-matched ($\alpha=0.10666$) & 1.0738 & 0.2286 & 0.1063 & 0.0373 & 0.3504 & 0.6594 & 0.5970 & 0.9940 & 1.415 \\
 \bottomrule
 \end{tabular}
 
 \vspace{2pt}
-{\footnotesize Simulation standard errors are below $10^{-3}$ for all entries
-and are omitted. The certainty-equivalent loss is reported at its closed-form
-value: it is the calibration target that defines the equal-CE row, and its
-Monte Carlo counterpart carries an error of about $2\times10^{-2}$ percentage
-points, which would make the two matched rows print differently.}
+{\footnotesize The last two columns report closed-form certainty equivalents
+(the calibration target of the equal-CE row); all other columns are simulated,
+with standard errors below $10^{-3}$.}
 \end{table}

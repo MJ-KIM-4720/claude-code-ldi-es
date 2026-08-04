@@ -1,9 +1,14 @@
 # NOTES — 2026-08 전면 재계산 (joint system + fixed claim)
 
-원고 반영용 숫자를 한 곳에 모은 문서. 모든 값은
-`python3 scripts/run_recompute.py` 로 재생성되며, 원자료는
-`results/diagnostics.csv`, `results/table2_mc.csv`,
-`results/sensitivity.csv`, `results/mc_convergence.csv` 에 있다.
+원고 반영용 숫자를 한 곳에 모은 문서.
+
+- `python3 scripts/run_recompute.py` — 그림 전체 + `diagnostics.csv`,
+  `sensitivity.csv`, `mc_convergence.csv`, `table2_mc_paths.csv`(복제 진단)
+- `python3 scripts/run_exact.py` — **원고 표 전부**: `table_mc_summary.tex`
+  (Table 2), `table_sensitivity_v2.tex` (Table 3), `table_deltaL.tex`,
+  `headline_numbers.md`
+
+최신 결정 사항은 §11(리뷰 2차)과 §12(후속 오더)에 있다.
 
 ---
 
@@ -432,13 +437,15 @@ seed = 20260803, equal-CE 행은 **exact α = 0.081178** 사용.
 
 | 전략 | mean | std | P(F_T<k) | E[(k−F)⁺] | 조건부 | Q05 | Bottom-5% | CE | CE loss % |
 |---|---|---|---|---|---|---|---|---|---|
-| Merton | 1.1062 | 0.2784 | 0.3889 | 0.0593 | 0.1524 | 0.7137 | 0.6462 | 1.0088 | 0.000 |
-| **ES (ε=0.10)** | 1.0155 | 0.1469 | 0.2473 | 0.0324 | **0.1308** | **0.7882** | **0.7136** | 0.9857 | 2.275 |
-| VaR (α=0.10) | 1.0703 | 0.2238 | 0.0996 | 0.0359 | 0.3608 | 0.6539 | 0.5921 | 0.9928 | 1.597 |
-| **VaR equal-CE (α=0.081178)** | 1.0576 | 0.2072 | 0.0807 | 0.0319 | 0.3950 | 0.6342 | 0.5742 | 0.9860 | 2.275 |
-| VaR thr-matched (α=0.106663) | 1.0738 | 0.2286 | 0.1063 | 0.0373 | 0.3504 | 0.6594 | 0.5970 | 0.9946 | 1.415 |
+| Merton | 1.1062 | 0.2784 | 0.3889 | 0.0593 | 0.1524 | 0.7137 | 0.6462 | 1.0082 | 0.000 |
+| **ES (ε=0.10)** | 1.0155 | 0.1469 | 0.2473 | 0.0324 | **0.1308** | **0.7882** | **0.7136** | 0.9853 | 2.275 |
+| VaR (α=0.10) | 1.0703 | 0.2238 | 0.0996 | 0.0359 | 0.3608 | 0.6539 | 0.5921 | 0.9921 | 1.597 |
+| **VaR equal-CE (α=0.081178)** | 1.0576 | 0.2072 | 0.0807 | 0.0319 | 0.3950 | 0.6342 | 0.5742 | 0.9853 | 2.275 |
+| VaR thr-matched (α=0.106663) | 1.0738 | 0.2286 | 0.1063 | 0.0373 | 0.3504 | 0.6594 | 0.5970 | 0.9940 | 1.415 |
 
-### 정밀도 — 표 각주 문구를 한 군데 손봐야 한다
+(마지막 두 열 CE·CE loss는 closed form, 나머지는 N=10⁶ MC.)
+
+### 정밀도 — CE·CE loss 두 열은 closed form (사용자 결정)
 
 closed form 대비 **max |MC − exact| = 7.76e−4 < 10⁻³** (9개 열 × 5행 전부,
 `results/table2_mc_vs_exact.md`). 오더가 준 문구
@@ -447,16 +454,16 @@ closed form 대비 **max |MC − exact| = 7.76e−4 < 10⁻³** (9개 열 × 5�
 
 CE loss는 퍼센트 포인트라 100배 증폭돼 MC 오차가 **≈0.017 pp** 다 (10⁻³ 초과).
 그대로 두면 정의상 동일해야 할 ES와 equal-CE VaR의 CE loss가 2.29 / 2.27 처럼
-**다르게 찍혀 캘리브레이션이 실패한 것처럼 보인다.** 그래서 CE loss 열만
-closed-form 값(2.275)으로 싣고 각주에 그 이유를 명시했다. CSV에는
-`ce_loss_pct_mc`, `ce_loss_pct_exact` 둘 다 있으니 원하면 바꿀 수 있다.
+다르게 찍혀 캘리브레이션이 실패한 것처럼 보인다. **사용자 결정에 따라 CE와
+CE loss 두 열 모두 closed form** 으로 싣는다 (CE는 캘리브레이션 타깃이므로
+같은 근거). 나머지 8개 열은 전부 simulated 이고 오차 <10⁻³ 이다.
+CSV에는 `ce`(MC), `ce_exact`, `ce_loss_pct_mc`, `ce_loss_pct_exact` 를 모두
+보관한다.
 
-현재 각주 문구:
-> Simulation standard errors are below 10⁻³ for all entries and are omitted.
-> The certainty-equivalent loss is reported at its closed-form value: it is the
-> calibration target that defines the equal-CE row, and its Monte Carlo
-> counterpart carries an error of about 2×10⁻² percentage points, which would
-> make the two matched rows print differently.
+표 각주:
+> The last two columns report closed-form certainty equivalents (the
+> calibration target of the equal-CE row); all other columns are simulated,
+> with standard errors below 10⁻³.
 
 ### Atom 검산
 
@@ -474,3 +481,44 @@ closed-form 값(2.275)으로 싣고 각주에 그 이유를 명시했다. CSV에
 오더가 제시한 ES 0.4784 / VaR 0.4287 과 일치한다.
 **ES는 47.8%의 확률로 정확히 목표에 착지**하고 VaR는 42.9%다 — 보호가
 성공하는 상태의 비중 자체가 ES 쪽이 크다.
+
+---
+
+# 12. 후속 오더 반영 (2026-08-04)
+
+1. **Table 3 (`table_sensitivity_v2.tex`) 원고 레이아웃으로 재생성.**
+   열 = Parameter, Value, ε_min, ε_M, Status, k_ε, c, A_ES, A_VaR, **α_min**
+   (α_min은 A_VaR 뒤). Total allocation 열 제거.
+   ε 그리드는 {0.09, 0.10, …, 0.15} step 0.01 로 원복 (0.13, 0.14 재계산 →
+   k_ε 0.9015 / 0.9466, A_ES 0.841 / 0.915). `P.EPS_GRID` 자체를 되돌렸다.
+   ε 패널의 A_VaR·α_min은 ε과 무관하므로 원고 관례대로 `---`.
+2. **Table 2 (`table_mc_summary.tex`)**: CE 열도 closed form으로 (CE·CE loss
+   두 열 exact). 각주 교체 (§11.9).
+3. **`diagnostics.csv` 재생성.** `alpha_equal_CE` 가 MC 값 0.085618 →
+   **exact 0.081178** 로 갱신되고, 출처를 밝히는 `alpha_equal_CE_source`,
+   `table2_source` 항목을 추가했다. `run_recompute.py`도 캘리브레이션을
+   `exact_stats` 로 호출하도록 바꿨다 (MC matcher는 seed 의존성 시연용으로만
+   `simulate.py`에 남김). 경로 기반 MC 표는 성격이 바뀌었으므로
+   `table2_mc.csv` → **`table2_mc_paths.csv`** 로 이름을 바꿨다 (복제 진단용).
+4. **그림 승격 (`paper/figures/`).**
+
+   | 대상 | 원본 |
+   |---|---|
+   | `mc_terminal_y010.png` | `outputs/fixed_claim/mc_terminal_y010_cdf_atom.png` (Fig 8 시안 c) |
+   | `fig_A1_gamma_es.png` | `outputs/fixed_claim/sens_GAMMA.png` |
+   | `fig_C1_muI_es.png` | `outputs/fixed_claim/sens_MU_I.png` |
+   | `fig_D1_T_es.png` | `outputs/fixed_claim/sens_T.png` |
+
+   우측 패널 마커 라벨은 `CVaR_5` → `Bottom-5% mean` 으로 교체했다.
+
+   **승격한 sens 그림은 Mode B (fixed claim, x축 = reference state y) 버전이다.**
+   구 `fig_*_es` 는 x축이 "Funding Ratio F(t)" 이면서 점마다 threshold를
+   다시 풀던 폐기 방법론 산출물이라 직접 대응이 없다. 단일 펀드의 배분
+   프로파일이라는 원 의도에 가장 가까운 것이 Mode B다. Mode A(cross-sectional,
+   x축 = F0)를 택하면 `outputs/cross_sectional/sens_*.png` 로 바꿔 넣으면 된다.
+   ρ 패널(`fig_E1_rho_es.png`)은 오더에 없어 승격하지 않았다 —
+   `outputs/fixed_claim/sens_RHO.png` 로 대기 중.
+
+   `paper/figures/` 는 이제 신규 4장 + 구 방법론 산출물이 섞여 있다.
+   나머지(fig_A2, A3, B1, B2, C2, D2, E1, E2, cross_sectional, time_series,
+   mc_fan/samples/shortfall 등)는 아직 구 산출물이다.

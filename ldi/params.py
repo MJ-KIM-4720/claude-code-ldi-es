@@ -46,7 +46,8 @@ y0      = 1.0       # Backward-compatible alias of F0
 
 # ── Analysis grids ──────────────────────────────────────
 # epsilon grid for sensitivity: inside the baseline feasible band
-EPS_GRID = [0.09, 0.10, 0.11, 0.12, 0.135, 0.15]
+# (0.087629, 0.152614), step 0.01 as in the manuscript's Table 3.
+EPS_GRID = [0.09, 0.10, 0.11, 0.12, 0.13, 0.14, 0.15]
 
 
 # ═══════════════════════════════════════════════════════════

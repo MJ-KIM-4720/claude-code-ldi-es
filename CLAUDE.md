@@ -52,6 +52,7 @@ The core contribution: ES eliminates gambling incentives that VaR creates for un
 ├── results/                   # CSV 산출물 (git 포함)
 │   ├── diagnostics.csv        # residual, 복제오차, baseline 해, MC 설정
 │   ├── table2_mc1e6.csv       # ★ 원고 Table 2 (MC, N=10^6 terminal draws)
+│   │                          #   CE·CE loss 두 열만 closed form
 │   ├── table_mc_summary.tex   # ★ 원고 Table 2 tex (SE 행 없음)
 │   ├── table2_exact.csv       # closed-form 벤치마크 (검증·캘리브레이션용)
 │   ├── table2_mc_vs_exact.md  # MC vs exact (<1e-3) 대조
@@ -59,7 +60,7 @@ The core contribution: ES eliminates gambling incentives that VaR creates for un
 │   ├── exact_vs_mc.md         # exact vs MC (±3 SE) 대조
 │   ├── table_sensitivity_v2.* # Table 3 + α_min 열
 │   ├── table_deltaL.*         # δ_L comparative statics
-│   ├── table2_mc.csv          # Table 2 (MC, 검증용)
+│   ├── table2_mc_paths.csv    # 경로 MC (복제 진단용)
 │   ├── sensitivity.csv        # config별 eps_min/eps_M/feasibility
 │   ├── mc_convergence.csv     # N×2, steps×2 수렴 확인
 │   └── legacy/                # 폐기된 구 결과 백업
