@@ -148,6 +148,32 @@ def override_params(**kwargs):
 
 
 # ═══════════════════════════════════════════════════════════
+# Liability growth rate  delta_L = beta_0 + beta_1·mu_I
+# ═══════════════════════════════════════════════════════════
+
+def delta_L():
+    """Total liability growth rate. r_tilde = r - delta_L."""
+    return BETA_0 + BETA_1 * MU_I
+
+
+def override_delta_L(value):
+    """Move delta_L ALONE, holding every asset-side quantity fixed.
+
+    The mu_I panel is a dual-channel experiment: mu_I enters both the
+    liability growth rate (via beta_1·mu_I) and the IIB excess return
+    (mu_I + R - r), so it simultaneously moves r_tilde, theta, sigma_Y and
+    the Merton weights. To isolate the LIABILITY channel we instead shift
+    beta_0, which appears only in r_tilde:
+
+        beta_0 = delta_L - beta_1·mu_I    (mu_I held at baseline)
+
+    so mu_excess, Sigma, theta, sigma_Y, lambda and Pi* are all unchanged
+    and r_tilde = r - delta_L is the only thing that moves.
+    """
+    return override_params(BETA_0=value - BETA_1 * MU_I)
+
+
+# ═══════════════════════════════════════════════════════════
 # ES feasibility band  (eps_min, eps_M)
 # ═══════════════════════════════════════════════════════════
 

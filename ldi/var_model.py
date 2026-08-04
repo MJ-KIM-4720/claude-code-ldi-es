@@ -74,21 +74,56 @@ def lambda_ratio(alpha=None):
     return float(np.exp(P.m_P * P.T + P.sigma_Y * np.sqrt(P.T) * norm.ppf(alpha)))
 
 
+def market_price_of_risk():
+    """lambda = gamma·sigma_Y = sqrt(theta^T theta).
+
+    FREE OF GAMMA: sigma_Y = sqrt(theta_sq)/gamma by construction, so the
+    product is the market price of risk of the aggregate fund. Every
+    quantity below inherits that gamma-independence — the VaR feasibility
+    bound is the same for every risk-aversion level.
+    """
+    return float(P.GAMMA * P.sigma_Y)
+
+
 def quantile_hedge_cost(alpha=None):
     """Minimum initial capital funding P(F_T >= k) >= 1 - alpha.
 
-    C_VaR(alpha) = k·e^{-r̃T}·Q(Y_T >= k_alpha) = k·e^{-r̃T}·N(d2(1, lambda)).
+    C_VaR(alpha) = k·e^{-r̃T}·Q(Y_T >= k_alpha)
+                 = k·e^{-r̃T}·N(d2(1, lambda_ratio))
+                 = k·e^{-r̃T}·Phi(Phi^{-1}(1-alpha) - lambda·sqrt(T))
+
+    The last form is the closed form used in the paper: substituting
+    m_P = r̃ + gamma·sigma_Y² - sigma_Y²/2 into d2 collapses it to
+    Phi^{-1}(1-alpha) - gamma·sigma_Y·sqrt(T).
     """
-    lam = lambda_ratio(alpha)
+    if alpha is None:
+        alpha = P.alpha
+    lam = market_price_of_risk()
     return float(P.k * np.exp(-P.r_tilde * P.T)
-                 * norm.cdf(bs_d2(1.0, lam, P.r_tilde, P.sigma_Y, P.T)))
+                 * norm.cdf(norm.ppf(1.0 - alpha) - lam * np.sqrt(P.T)))
 
 
 def alpha_min(F0=None):
-    """Smallest attainable alpha at budget F0 (C_VaR(alpha_min) = F0).
+    """Smallest attainable alpha at budget F0 — closed form.
 
-    Returns 0.0 if even alpha -> 0 is affordable.
+        alpha_min = 1 - Phi(lambda·sqrt(T) + Phi^{-1}(F0·e^{r̃T}/k))
+                        if F0 < k·e^{-r̃T}
+                  = 0   otherwise (the target is fully defeasible)
+
+    Solves C_VaR(alpha_min) = F0. Returns 0.0 when even alpha -> 0 is
+    affordable, which happens exactly when r̃ >= ln(k/F0)/T.
     """
+    if F0 is None:
+        F0 = P.F0
+    ratio = F0 * np.exp(P.r_tilde * P.T) / P.k
+    if ratio >= 1.0:
+        return 0.0
+    lam = market_price_of_risk()
+    return float(1.0 - norm.cdf(lam * np.sqrt(P.T) + norm.ppf(ratio)))
+
+
+def alpha_min_numeric(F0=None):
+    """Root-finding counterpart of alpha_min — kept as a cross-check."""
     if F0 is None:
         F0 = P.F0
     if quantile_hedge_cost(1e-12) <= F0:
