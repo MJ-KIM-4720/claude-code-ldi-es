@@ -453,6 +453,23 @@ SENS_CONFIGS = {
     'RHO':   [-0.5, -0.15, 0.0, 0.5],
 }
 
+# Code-style parameter names must never reach a figure: every title, legend
+# entry and annotation uses the mathtext symbol.
+PARAM_LABELS = {
+    'GAMMA':  r'$\gamma$',
+    'MU_I':   r'$\mu_I$',
+    'T':      r'$T$',
+    'RHO':    r'$\rho$',
+    'BETA_0': r'$\beta_0$',
+    'EPS':    r'$\varepsilon$',
+    'DELTA_L': r'$\delta_L$',
+}
+
+
+def param_label(param):
+    """Mathtext symbol for a parameter name (falls back to the raw name)."""
+    return PARAM_LABELS.get(param, param)
+
 
 def sensitivity_scan(param, values=None, F0=None, eps=None):
     """Recompute the joint solution for each parameter value.
@@ -511,14 +528,15 @@ def plot_sensitivity_cross(param, values=None, F0_range=(0.9, 2.0),
             lo = feasible_F0_min(eps)
         n_ok = int(np.sum(~np.isnan(A)))
         ax.plot(F0_vals, A, color=col, lw=2.2,
-                label=f'{param}={v:g} ($F_0>${lo:.3f})')
+                label=f'{param_label(param)}={v:g} ($F_0>${lo:.3f})')
         if n_ok == 0:
-            notes.append(f'{param}={v:g}: infeasible over the whole range')
+            notes.append(f'{param_label(param)}={v:g}: infeasible over the '
+                         f'whole range')
     add_merton_hline(ax, 1.0, 'Merton ($A=1$)')
     add_k_vline(ax)
     ax.set_xlabel('Initial funding ratio $F_0$')
     ax.set_ylabel('$A_{ES}(0,Y_0)$')
-    ax.set_title(f'Cross-sectional sensitivity to {param} '
+    ax.set_title(f'Cross-sectional sensitivity to {param_label(param)} '
                  rf'($\varepsilon$={eps})')
     if notes:
         ax.text(0.02, 0.02, '\n'.join(notes), transform=ax.transAxes,
@@ -550,16 +568,16 @@ def plot_sensitivity(param, values=None, F0=None, eps=None,
             A = (ES.adjustment_factor(y, rec['k_eps'], rec['c'], P.T)
                  if rec['binding'] else np.ones_like(y))
         ax.plot(y, A, color=col, lw=2.2,
-                label=f"{param}={rec['value']:g} "
+                label=f"{param_label(param)}={rec['value']:g} "
                       rf"($\varepsilon_{{\min}}$={rec['eps_min']:.3f})")
     add_merton_hline(ax, 1.0, 'Merton ($A=1$)')
     add_k_vline(ax)
     ax.set_xlabel('Reference state $y$')
     ax.set_ylabel('$A_{ES}(0,y)$')
-    ax.set_title(f'Sensitivity to {param} '
+    ax.set_title(f'Sensitivity to {param_label(param)} '
                  rf'($F_0$={F0 or P.F0}, $\varepsilon$={eps or P.epsilon})')
     if skipped:
-        txt = '\n'.join(f"{param}={r['value']:g}: INFEASIBLE "
+        txt = '\n'.join(f"{param_label(param)}={r['value']:g}: INFEASIBLE "
                         rf"($\varepsilon_{{\min}}$={r['eps_min']:.4f}"
                         rf"$\geq\varepsilon$)" for r in skipped)
         ax.text(0.02, 0.02, txt, transform=ax.transAxes, fontsize=10,

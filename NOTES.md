@@ -93,16 +93,21 @@ gambling을 유발한다는 기존 비판에, "VaR은 애초에 지키기 쉬운
 
 ## 4. VaR matching
 
-| 방식 | α | 근거 |
-|---|---|---|
-| **equal-CE (기본)** | **0.0856181** | MC CE loss를 ES와 동일 (2.5219%)하게 맞춤 |
-| threshold matching (robustness) | 0.1066627 | `k_α = k_ε = 0.7275526` 정확히 일치 |
-| 명목 동일값 (참고) | 0.10 | — |
+> **[갱신됨 — §11 참조]** equal-CE α는 exact CE 기준 **0.081178** 로 대체되었다.
+> 아래 0.0856181은 MC(seed 20260803) 기준값으로, seed에 의존하므로 원고에는
+> 쓰지 않는다.
 
-equal-CE 탐색은 common random numbers 위에서 이분법 — CE_loss(α)가 매끄러운
-결정론적 함수가 되어 수렴이 안정적이다.
+| 방식 | α (MC, 구) | α (exact, 채택) | 근거 |
+|---|---|---|---|
+| **equal-CE (기본)** | 0.0856181 | **0.081178** | CE loss를 ES와 동일하게 맞춤 |
+| threshold matching (robustness) | 0.1066627 | 0.1066627 | `k_α = k_ε = 0.7275526` (MC 무관) |
+| 명목 동일값 (참고) | 0.10 | 0.10 | — |
 
 ## 5. Table 2 — fixed-claim MC (SE 포함)
+
+> **[갱신됨 — §11 참조]** 원고 Table 2는 exact(closed-form) 값으로 대체되었다.
+> 아래 MC 표는 (a) exact 공식의 독립 검증, (b) Figure 8 histogram 용도로 유지한다.
+> 모든 통계가 exact ± 3 SE 안에 들어온다 (`results/exact_vs_mc.md`).
 
 N = 10,000 / steps = 120 (월별, T=10) / seed = 20260803 /
 exact GBM scheme / bootstrap 500회. 괄호 안이 SE.
@@ -263,3 +268,146 @@ python3 -m pytest tests/ -v          # 107 passed
 python3 scripts/run_recompute.py     # 약 37초, 그림 + CSV 전부 재생성
 python3 scripts/run_recompute.py --quick   # 축소 MC 스모크 런
 ```
+
+---
+
+# 11. Review round 2 — exact statistics, VaR bound, δ_L (2026-08-04)
+
+재생성: `python3 scripts/run_exact.py` (약 40초).
+산출물: `results/table2_exact.csv`, `table_exact_summary.tex`,
+`headline_numbers.md`, `exact_vs_mc.md`, `table_sensitivity_v2.{csv,tex}`,
+`table_deltaL.{csv,tex}`.
+
+## 11.1 왜 exact인가
+
+Reference process가 P-측도에서 lognormal이고 세 claim이 모두
+`g(y) = c·y | k | y` 형태의 구간별 선형함수이므로, terminal 통계 전부가
+truncated lognormal 조립으로 닫힌 해를 갖는다. MC/수치적분 불필요.
+
+```
+Λ(a,K) = E[Y_T^a 1{Y_T<K}] = exp(am + a²s²/2)·Φ((lnK − m − as²)/s)
+m = ln Y_0 + m_P·T,   s = σ_Y√T
+ES: c = k/k_ε, k_low = k_ε | VaR: c = 1, k_low = k_α | Merton: c = 1, k_low = k
+```
+
+세 전략이 **하나의 공식**으로 처리된다 (`ldi/exact_stats.py`).
+Merton은 중간 구간이 비어 identity claim이 된다.
+
+## 11.2 Table 2 (exact, model-implied)
+
+| 전략 | mean | std | P(F_T<k) | E[(k−F)⁺] | 조건부 | Q05 | **Bottom-5%** | CE | CE loss % |
+|---|---|---|---|---|---|---|---|---|---|
+| Merton | 1.10562 | 0.27838 | 0.38935 | 0.05941 | 0.15258 | 0.71310 | 0.64554 | 1.008236 | 0.000 |
+| **ES (ε=0.10)** | 1.01516 | 0.14701 | 0.24791 | 0.03249 | **0.13106** | **0.78746** | **0.71285** | 0.985302 | **2.275** |
+| VaR (α=0.10) | 1.06981 | 0.22387 | 0.10000 | 0.03611 | 0.36109 | 0.65335 | 0.59144 | 0.992132 | 1.597 |
+| **VaR equal-CE (α=0.081178)** | 1.05716 | 0.20735 | 0.08118 | 0.03208 | 0.39524 | 0.63363 | 0.57360 | 0.985302 | **2.275** |
+| VaR thr-matched (α=0.106663) | 1.07338 | 0.22858 | 0.10666 | 0.03741 | 0.35076 | 0.65880 | 0.59638 | 0.993970 | 1.415 |
+
+**Headline (동일 CE 비용 2.275% 통제):**
+
+1. **Bottom-5% 평균: 0.71285 vs 0.57360 → +24.28%**
+2. **조건부 부족분: 0.13106 vs 0.39524 → VaR이 3.016배 깊다**
+3. Q05: 0.78746 vs 0.63363 (+0.15383)
+4. ES는 Merton 대비 E[(k−F)⁺]를 **45.31%** 줄인다 (0.05941 → 0.03249)
+5. VaR의 bottom-5% (0.59144)는 **Merton (0.64554)보다도 나쁘다**
+
+### 원고에서 반드시 짚어야 할 뉘앙스
+
+equal-CE VaR 대비로는 ES가 **무조건부** E[(k−F)⁺]에서 이기지 못한다
+(0.03249 vs 0.03208, VaR이 1.3% 낮다). P(F_T<k)도 VaR이 훨씬 낮다
+(0.0812 vs 0.2479). ES의 우위는 부족의 **평균이 아니라 모양**에 있다 —
+ES는 얕고 잦은 부족을, VaR은 드물고 깊은 부족을 만든다. 그래서 평균 기반
+지표로 요약하면 두 제약이 동등해 보이고, tail 지표(bottom-5%, 조건부
+부족분)에서만 차이가 드러난다. 본문은 tail 지표를 앞세우는 편이
+정확하고 방어에도 유리하다.
+
+## 11.3 오더 기대값과의 대조 — 3건 불일치, 전부 외부 반올림
+
+`scripts/run_exact.py`가 23개 항목을 자동 검증한다. 22개 OK, 1개 DEVIATION.
+외부 재계산치가 자기 자신의 다른 값과 모순되는 것이 원인이다.
+
+오더가 제시한 Merton mean(1.10562)과 CE(1.008236)는 lognormal에서
+(m_P·T, s)를 정확히 고정한다:
+`ln CE = m_P·T − s²`, `ln mean = m_P·T + s²/2` → m_P·T = 0.0696716,
+s = 0.2479301 (우리 값 0.0696703 / 0.2479277과 일치).
+
+| 항목 | 오더 기대 | 우리 값 | 오더 자신의 입력으로 재계산 | 판정 |
+|---|---|---|---|---|
+| ES P(F<k) | 0.24803 | 0.247907 | **0.247908** | 오더 값이 자기 입력과 불일치 |
+| ES std | 0.14712 | 0.147011 | **0.147011** | 〃 (허용오차 내라 OK 처리) |
+| VaR k_α | 0.71477 | 0.714926 | Ψ_VaR = **0.99990** ≠ 1 | 예산식 위반 |
+
+- ES P(F<k)/std: 오더가 준 (Y0, k_ε, c) = (0.803420, 0.727553, 1.374471) 과
+  위 (m_P·T, s)를 그대로 넣으면 0.247908 / 0.147011 이 나온다. 즉 우리 값과
+  같고, 기대값 쪽이 어긋난다. **원고에는 0.24791 / 0.14701 을 쓸 것.**
+- VaR k_α = 0.71477 은 Y0_var = 0.916007 을 함의하는데, 그 점에서 예산식
+  Ψ_VaR(0,Y0) = 0.99990 으로 1을 만족하지 않는다. 우리 값 0.714926
+  (Y0 = 0.916206) 은 기계정밀도로 예산을 만족한다.
+
+## 11.4 α_min — VaR feasibility bound
+
+```
+λ = γ·σ_Y = sqrt(θᵀθ)                          (γ와 무관!)
+C_VaR(α) = k·e^{-r̃T}·Φ(Φ^{-1}(1−α) − λ√T)
+α_min    = 1 − Φ(λ√T + Φ^{-1}(F0·e^{r̃T}/k))    if F0 < k·e^{-r̃T}, else 0
+```
+
+- baseline **α_min = 0.015975** (closed form과 brentq 해가 2e-17 이내 일치)
+- σ_Y = √θ²/γ 이므로 λ = γσ_Y = √θ² 는 γ-free → **γ 패널·ε 패널 전 행에서
+  α_min이 0.015975로 동일** (assert로 고정)
+- 세 calibration (0.10, 0.081178, 0.106663) 전부 α_min 초과 ✓
+- μ_I=0.010 → r̃ > 0 이라 target을 무위험으로 완전 defease 가능 → **α_min = 0**
+- **μ_I=0.030 → ES는 infeasible (ε_min=0.1503 > 0.10) 이지만 VaR는
+  α_min=0.02148 로 여유롭게 feasible** — 두 제약의 비대칭을 보여주는 핵심 행
+
+Table 3 = `results/table_sensitivity_v2.tex` (기존 열 순서 유지 + A_VaR 뒤에
+α_min 열 추가). 패널: γ, ε, μ_I, T, ρ. infeasible 행은 ES 열을 `---` 처리.
+ε_min/ε_M/status 등 전체 필드는 동반 CSV에 있다.
+
+## 11.5 δ_L comparative statics (liability 채널 분리)
+
+μ_I 패널은 dual channel이다 — μ_I는 부채 성장률(β₁μ_I)과 IIB 초과수익
+(μ_I+R−r)을 동시에 움직여 r̃, θ, σ_Y, Π* 가 전부 바뀐다. δ_L = β₀+β₁μ_I 를
+직접 변수로 삼되 **β₀만 이동**시키면 (μ_I 고정) 자산 쪽은 전부 고정되고
+r̃ = r − δ_L 만 움직인다 → `P.override_delta_L()`.
+
+| δ_L | r̃ | ε_min | ε_M | status | α_min |
+|---|---|---|---|---|---|
+| 0.0400 | +0.00000 | 0.0000 | 0.0987 | **Slack** (ε_M < 0.10) | 0.00000 |
+| 0.0430 | −0.00300 | 0.0305 | 0.1161 | Binding | 0.00425 |
+| 0.0460 | −0.00600 | 0.0618 | 0.1356 | Binding | 0.01035 |
+| 0.0484* | −0.00840 | 0.0876 | 0.1526 | Binding (baseline) | 0.01597 |
+| 0.0520 | −0.01200 | 0.1275 | 0.1807 | **Infeasible** | 0.02534 |
+
+전 행에서 σ_Y = 0.078402, Merton total = 0.804337 로 **완전히 동일**
+(assert로 고정). 즉 위 변화는 순수하게 liability 채널이다.
+ε_min은 δ_L에 대해 `e^{(δ_L−r)T} − 1` 로 거의 선형에 가깝게 증가하며,
+δ_L이 baseline에서 0.0036 (약 7%) 오르는 것만으로 baseline ε=0.10이
+infeasible이 된다 — 제약의 실행가능성이 부채 가정에 매우 민감함을 보여준다.
+
+## 11.6 Figure 시안 (확정 보류, 기존 파일 유지)
+
+| 파일 | 내용 |
+|---|---|
+| `outputs/common/eps_min_muI_v2.png` | Figure 6 + α_min(μ_I) twin axis. 스케일이 달라(예산 vs 확률) 오른쪽 축 분리. ES floor는 μ_I=0.0244에서 ε=0.10을 뚫지만 α_min은 전 구간 α=0.10 훨씬 아래 |
+| `outputs/fixed_claim/mc_terminal_y010_inset.png` | Figure 8 (a): 좌측꼬리 zoom inset. connector 대신 원본 구간을 음영 처리 (connector가 패널을 가로질러 지저분함), F_T=k의 atom을 화살표로 명시 |
+| `outputs/fixed_claim/mc_terminal_y010_cdf.png` | Figure 8 (b): empirical CDF. **가장 설명력이 높음** — VaR의 α=0.10 평평한 구간(보호 포기 영역에 질량 없음)이 그대로 보이고, ES/VaR CDF 교차점 F_T=0.861 아래에서 ES 질량이 더 적다는 것이 한눈에 보인다 |
+
+경로 주의: 오더는 `outputs/` 직하를 지정했으나, `.gitignore`가 
+`outputs/{cross_sectional,fixed_claim,common}` 만 추적하므로 직하 파일은
+커밋되지 않는다. 원본 Figure 8과 같은 디렉터리에 두었다.
+
+## 11.7 Figure 표기 정리
+
+`ldi/compare.py`에 `PARAM_LABELS` / `param_label()` 추가. 제목·범례·infeasible
+주석 박스까지 `GAMMA` → `$\gamma$`, `MU_I` → `$\mu_I$` 등 mathtext로 일괄 변환.
+matplotlib은 usetex를 쓰지 않으므로 `\&`, `\%` 같은 LaTeX 이스케이프는 리터럴로
+출력된다 — 일반 텍스트에는 `&`, `%` 를 그대로 쓸 것 (2건 수정).
+
+## 11.8 MC 파이프라인
+
+**삭제하지 않았다.** `ldi/simulate.py`, `scripts/run_recompute.py` 전부 유지.
+용도가 (원고 수치) → (검증 + Figure 8 histogram)으로 바뀌었을 뿐이다.
+`results/exact_vs_mc.md` 에 exact vs MC(±3 SE) 대조표가 있고 전 통계가 3 SE
+이내다. 오더가 예고한 Merton P(F<k) 예외는 **+2.83 SE** 로 3 SE를 넘지 않는다
+(exact 0.38935 vs MC 0.37560, SE 0.00487).

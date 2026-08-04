@@ -1,0 +1,25 @@
+\begin{table}[htbp]
+\centering
+\caption{Liability-channel comparative statics: $\delta_L = \beta_0 + \beta_1\mu_I$
+with all asset-side parameters held at baseline ($F_0 = 1.0$, $\varepsilon = 0.10$)}
+\label{tab:deltaL}
+\begin{tabular}{cc cc l c cc c cc}
+\toprule
+ & & & & & & \multicolumn{2}{c}{Adjustment factor} & & \multicolumn{2}{c}{Total allocation} \\
+\cmidrule(lr){7-8} \cmidrule(lr){10-11}
+$\delta_L$ & $\tilde r$ & $\varepsilon_{\min}$ & $\varepsilon_M$ & Status
+ & $k_\varepsilon$ & $A_{\mathrm{ES}}$ & $A_{\mathrm{VaR}}$ & $\alpha_{\min}$
+ & ES & VaR \\
+\midrule
+  0.0400 & 0.00000 & 0.0000 & 0.0987 & Slack & 1.0000 & 1.000 & 0.946 & 0.00000 & 0.804 & 0.761 \\
+  0.0430 & -0.00300 & 0.0305 & 0.1161 & Binding & 0.9341 & 0.891 & 0.925 & 0.00425 & 0.716 & 0.744 \\
+  0.0460 & -0.00600 & 0.0618 & 0.1356 & Binding & 0.8445 & 0.740 & 0.905 & 0.01035 & 0.595 & 0.728 \\
+  0.0484$^{*}$ & -0.00840 & 0.0876 & 0.1526 & Binding & 0.7276 & 0.580 & 0.891 & 0.01597 & 0.467 & 0.717 \\
+  0.0520 & -0.01200 & 0.1275 & 0.1807 & Infeasible & --- & --- & 0.884 & 0.02534 & --- & 0.711 \\
+\bottomrule
+\end{tabular}
+
+\vspace{2pt}
+{\footnotesize $^{*}$ baseline. $\sigma_Y$, $\lambda$ and $\Pi^{*}$ are
+identical in every row by construction: only $\tilde r = r - \delta_L$ moves.}
+\end{table}

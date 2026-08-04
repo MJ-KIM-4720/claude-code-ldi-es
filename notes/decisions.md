@@ -1,5 +1,29 @@
 # 모델링 결정 기록
 
+## 12. Exact statistics 전환 + α_min + δ_L (2026-08-04, 리뷰 2차)
+
+**(a) Table 2를 MC → closed form 으로.** reference process가 lognormal이고
+세 claim이 전부 `g(y)= c·y | k | y` 구간별 선형이므로 모든 terminal 통계가
+truncated lognormal 조립으로 닫힌다. `ldi/exact_stats.py` 는 **하나의 공식**
+으로 세 전략을 처리한다 (Merton은 c=1, k_low=k → 중간 구간이 비어 identity).
+MC 파이프라인은 삭제하지 않고 검증 + Figure 8 용도로 유지.
+
+**(b) equal-CE α를 exact 기준으로 재산정.** MC 기반 0.085618은 seed에
+의존한다. exact CE로 풀면 **0.081178**. root-finder tol은 오더가 허용한
+1e-5 대신 1e-12로 뒀다 — 공짜이고, 1e-5로는 보고할 5번째 소수가 안 잡힌다.
+
+**(c) α_min closed form.** `λ = γσ_Y = √θᵀθ` 가 γ-free 라는 점이 핵심이라
+γ 패널 전 행에서 α_min이 동일하다. brentq 해와 2e-17 이내 일치하는 것을
+테스트로 고정했고, 기존 numeric 버전은 `alpha_min_numeric`으로 남겨 교차검증.
+
+**(d) δ_L 채널 분리.** μ_I는 부채(β₁μ_I)와 IIB 초과수익(μ_I+R−r)을 동시에
+움직이는 dual channel이다. β₀만 이동시키면 (μ_I 고정) 자산 쪽 θ, σ_Y, Π* 가
+전부 불변이고 r̃만 움직인다 → `params.override_delta_L()`. 테스트에서 자산
+불변을 assert 한다.
+
+**(e) A_ES 계산식은 wedge form 유지** (결정 11-d). exact_stats는 A를 쓰지
+않지만, 두 경로가 같은 claim 파라미터를 쓰므로 일관성이 유지된다.
+
 ## 11. Joint system + fixed claim 으로 전면 재설계 (2026-08) ★
 아래 1~10 중 ES/VaR 해법과 MC 관련 항목은 이 결정으로 **대체되었다**.
 상세 숫자는 저장소 루트 `NOTES.md` 참조.
