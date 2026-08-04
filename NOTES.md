@@ -273,10 +273,16 @@ python3 scripts/run_recompute.py --quick   # 축소 MC 스모크 런
 
 # 11. Review round 2 — exact statistics, VaR bound, δ_L (2026-08-04)
 
-재생성: `python3 scripts/run_exact.py` (약 40초).
-산출물: `results/table2_exact.csv`, `table_exact_summary.tex`,
+재생성: `python3 scripts/run_exact.py` (약 1분).
+산출물: `results/table2_mc1e6.csv` + `table_mc_summary.tex` (**원고 Table 2**),
+`table2_exact.csv` (closed-form 벤치마크), `table2_mc_vs_exact.md`,
 `headline_numbers.md`, `exact_vs_mc.md`, `table_sensitivity_v2.{csv,tex}`,
 `table_deltaL.{csv,tex}`.
+
+> **오더 수정 반영 (사용자 결정).** 원고 Table 2는 **MC (N=10⁶ terminal draws)**
+> 이다. `exact_stats`는 표를 직접 만들지 않고 (a) equal-CE α 캘리브레이션,
+> (b) MC 검증 기준값, (c) `headline_numbers.md` 산출에만 쓴다.
+> `table_exact_summary.tex` 생성은 취소했다 (§11.9).
 
 ## 11.1 왜 exact인가
 
@@ -293,7 +299,7 @@ ES: c = k/k_ε, k_low = k_ε | VaR: c = 1, k_low = k_α | Merton: c = 1, k_low =
 세 전략이 **하나의 공식**으로 처리된다 (`ldi/exact_stats.py`).
 Merton은 중간 구간이 비어 identity claim이 된다.
 
-## 11.2 Table 2 (exact, model-implied)
+## 11.2 Closed-form 기준값 (원고 Table 2는 §11.9의 MC 버전)
 
 | 전략 | mean | std | P(F_T<k) | E[(k−F)⁺] | 조건부 | Q05 | **Bottom-5%** | CE | CE loss % |
 |---|---|---|---|---|---|---|---|---|---|
@@ -391,7 +397,10 @@ infeasible이 된다 — 제약의 실행가능성이 부채 가정에 매우 �
 |---|---|
 | `outputs/common/eps_min_muI_v2.png` | Figure 6 + α_min(μ_I) twin axis. 스케일이 달라(예산 vs 확률) 오른쪽 축 분리. ES floor는 μ_I=0.0244에서 ε=0.10을 뚫지만 α_min은 전 구간 α=0.10 훨씬 아래 |
 | `outputs/fixed_claim/mc_terminal_y010_inset.png` | Figure 8 (a): 좌측꼬리 zoom inset. connector 대신 원본 구간을 음영 처리 (connector가 패널을 가로질러 지저분함), F_T=k의 atom을 화살표로 명시 |
-| `outputs/fixed_claim/mc_terminal_y010_cdf.png` | Figure 8 (b): empirical CDF. **가장 설명력이 높음** — VaR의 α=0.10 평평한 구간(보호 포기 영역에 질량 없음)이 그대로 보이고, ES/VaR CDF 교차점 F_T=0.861 아래에서 ES 질량이 더 적다는 것이 한눈에 보인다 |
+| `outputs/fixed_claim/mc_terminal_y010_cdf.png` | Figure 8 (b): empirical CDF. VaR의 α=0.10 평평한 구간(보호 포기 영역에 질량 없음)이 그대로 보이고, ES/VaR CDF 교차점 F_T≈0.861 아래에서 ES 질량이 더 적다 |
+| `outputs/fixed_claim/mc_terminal_y010_cdf_atom.png` | Figure 8 (c): **추천.** CDF의 atom 점프를 양방향 화살표로 표시하고 수치를 병기 (ES 0.4781 / VaR 0.4283), 우측에 좌측꼬리 F_T ≤ 0.9 소패널 + CVaR₅ 마커. atom·꼬리·교차를 한 장에 담는다 |
+
+세 시안 모두 **N = 10⁶ terminal draws** 로 생성한다.
 
 경로 주의: 오더는 `outputs/` 직하를 지정했으나, `.gitignore`가 
 `outputs/{cross_sectional,fixed_claim,common}` 만 추적하므로 직하 파일은
@@ -411,3 +420,57 @@ matplotlib은 usetex를 쓰지 않으므로 `\&`, `\%` 같은 LaTeX 이스케이
 `results/exact_vs_mc.md` 에 exact vs MC(±3 SE) 대조표가 있고 전 통계가 3 SE
 이내다. 오더가 예고한 Merton P(F<k) 예외는 **+2.83 SE** 로 3 SE를 넘지 않는다
 (exact 0.38935 vs MC 0.37560, SE 0.00487).
+
+## 11.9 원고 Table 2 — terminal-draw MC (N = 10⁶)
+
+경로가 필요 없다. claim은 경로에 오직 `Y_T`를 통해서만 의존하므로 terminal
+분포에서 직접 뽑는다 (`SIM.terminal_draws`, exact lognormal, 이산화 오차 0).
+그래서 N=10⁶이 저렴하다. 전 전략이 **같은 표준정규**를 공유한다 (CRN) —
+Y0와 claim만 다르다.
+
+seed = 20260803, equal-CE 행은 **exact α = 0.081178** 사용.
+
+| 전략 | mean | std | P(F_T<k) | E[(k−F)⁺] | 조건부 | Q05 | Bottom-5% | CE | CE loss % |
+|---|---|---|---|---|---|---|---|---|---|
+| Merton | 1.1062 | 0.2784 | 0.3889 | 0.0593 | 0.1524 | 0.7137 | 0.6462 | 1.0088 | 0.000 |
+| **ES (ε=0.10)** | 1.0155 | 0.1469 | 0.2473 | 0.0324 | **0.1308** | **0.7882** | **0.7136** | 0.9857 | 2.275 |
+| VaR (α=0.10) | 1.0703 | 0.2238 | 0.0996 | 0.0359 | 0.3608 | 0.6539 | 0.5921 | 0.9928 | 1.597 |
+| **VaR equal-CE (α=0.081178)** | 1.0576 | 0.2072 | 0.0807 | 0.0319 | 0.3950 | 0.6342 | 0.5742 | 0.9860 | 2.275 |
+| VaR thr-matched (α=0.106663) | 1.0738 | 0.2286 | 0.1063 | 0.0373 | 0.3504 | 0.6594 | 0.5970 | 0.9946 | 1.415 |
+
+### 정밀도 — 표 각주 문구를 한 군데 손봐야 한다
+
+closed form 대비 **max |MC − exact| = 7.76e−4 < 10⁻³** (9개 열 × 5행 전부,
+`results/table2_mc_vs_exact.md`). 오더가 준 문구
+*"Simulation standard errors are below 10^{-3} for all entries and are omitted."*
+는 **CE loss 열만 빼면 그대로 참**이다.
+
+CE loss는 퍼센트 포인트라 100배 증폭돼 MC 오차가 **≈0.017 pp** 다 (10⁻³ 초과).
+그대로 두면 정의상 동일해야 할 ES와 equal-CE VaR의 CE loss가 2.29 / 2.27 처럼
+**다르게 찍혀 캘리브레이션이 실패한 것처럼 보인다.** 그래서 CE loss 열만
+closed-form 값(2.275)으로 싣고 각주에 그 이유를 명시했다. CSV에는
+`ce_loss_pct_mc`, `ce_loss_pct_exact` 둘 다 있으니 원하면 바꿀 수 있다.
+
+현재 각주 문구:
+> Simulation standard errors are below 10⁻³ for all entries and are omitted.
+> The certainty-equivalent loss is reported at its closed-form value: it is the
+> calibration target that defines the equal-CE row, and its Monte Carlo
+> counterpart carries an error of about 2×10⁻² percentage points, which would
+> make the two matched rows print differently.
+
+### Atom 검산
+
+`P(F_T = k)` 는 중간 구간(보호 성공 상태)의 질량이다. 이 구간 payoff가
+정확히 k라 표본비율을 등식으로 셀 수 있다.
+
+| 전략 | 표본비율 | 이론값 (Φ((ln k − m)/s) − p₁) | \|차\| |
+|---|---|---|---|
+| Merton | 0.000000 | 0.000000 | 0 (중간 구간 없음) |
+| **ES** | 0.478075 | **0.478446** | 3.7e−4 |
+| **VaR (0.10)** | 0.428345 | **0.428688** | 3.4e−4 |
+| VaR equal-CE | 0.496474 | 0.496341 | 1.3e−4 |
+| VaR thr-matched | 0.408258 | 0.408668 | 4.1e−4 |
+
+오더가 제시한 ES 0.4784 / VaR 0.4287 과 일치한다.
+**ES는 47.8%의 확률로 정확히 목표에 착지**하고 VaR는 42.9%다 — 보호가
+성공하는 상태의 비중 자체가 ES 쪽이 크다.

@@ -305,3 +305,82 @@ class TestAgainstMonteCarlo:
                 se = mc[name]['se'][mc_key]
                 z = (st[ex_key] - mc[name]['stats'][mc_key]) / se
                 assert abs(z) < 3.0, f'{name}.{ex_key} is {z:+.2f} SE from MC'
+
+
+# ═══════════════════════════════════════════════════════════
+# Terminal-draw sampling (Table 2, N = 10^6)
+# ═══════════════════════════════════════════════════════════
+
+class TestTerminalDraws:
+
+    def test_generic_claim_matches_model_claims(self):
+        """claim_from_params 가 ES/VaR/Merton claim과 동일해야 한다."""
+        y = np.linspace(0.2, 2.5, 500)
+        assert np.allclose(
+            SIM.claim_from_params(y, BASE_ES['c'], BASE_ES['k_eps']),
+            ES.claim(y, BASE_ES['k_eps'], BASE_ES['c']))
+        assert np.allclose(
+            SIM.claim_from_params(y, 1.0, BASE_VAR['k_alpha']),
+            VaR.claim(y, BASE_VAR['k_alpha']))
+        assert np.allclose(SIM.claim_from_params(y, 1.0, P.k), y)
+
+    def test_terminal_draws_match_path_terminal_law(self):
+        """경로 방식과 terminal-only 방식의 Y_T 법칙이 같아야 한다."""
+        Y_T = SIM.terminal_draws(0.9, n=200_000, seed=11)
+        _, Y, _ = SIM.reference_paths(0.9, n_paths=200_000, n_steps=12, seed=11)
+        lg1, lg2 = np.log(Y_T), np.log(Y[:, -1])
+        se = P.sigma_Y * np.sqrt(P.T) / np.sqrt(200_000)
+        assert abs(lg1.mean() - lg2.mean()) < 4 * se
+        assert lg1.std() == pytest.approx(lg2.std(), rel=0.01)
+
+    def test_common_random_numbers(self):
+        """같은 Z를 쓰면 Y_T가 Y0에 정확히 비례한다."""
+        Z = np.random.default_rng(3).standard_normal(1000)
+        a = SIM.terminal_draws(1.0, Z=Z)
+        b = SIM.terminal_draws(0.8, Z=Z)
+        assert np.allclose(b / a, 0.8, rtol=1e-14)
+
+    def test_atom_fraction_matches_theory(self):
+        """P(F_T = k) 표본비율 ≈ 이론값 (ES 0.4784 / VaR 0.4287)."""
+        specs = {'ES': (BASE_ES['Y0'], BASE_ES['c'], BASE_ES['k_eps']),
+                 'VaR': (BASE_VAR['Y0'], 1.0, BASE_VAR['k_alpha'])}
+        smp = SIM.terminal_sample(specs, n=400_000, seed=20260803)
+        theory = {'ES': X.es_stats(sol=BASE_ES)['atom_mass'],
+                  'VaR': X.var_stats(sol=BASE_VAR)['atom_mass']}
+        assert theory['ES'] == pytest.approx(0.4784, abs=1e-4)
+        assert theory['VaR'] == pytest.approx(0.4287, abs=1e-4)
+        for kk in specs:
+            assert SIM.atom_fraction(smp[kk]) == pytest.approx(
+                theory[kk], abs=4e-3)
+
+    def test_merton_has_no_atom(self):
+        assert X.merton_stats()['atom_mass'] == pytest.approx(0.0, abs=1e-15)
+
+    def test_atom_is_exact_equality(self):
+        """중간 구간 payoff가 정확히 k여야 표본비율을 셀 수 있다."""
+        y = np.array([BASE_ES['k_eps'] * 1.001, 0.9, 0.999])
+        F = SIM.claim_from_params(y, BASE_ES['c'], BASE_ES['k_eps'])
+        assert np.all(F == P.k)
+
+    def test_mc_table_within_tolerance(self):
+        """N=200k에서 exact 대비 오차가 1/sqrt(N) 스케일 안에 있어야 한다."""
+        n = 200_000
+        specs = {'Merton': (P.F0, 1.0, P.k),
+                 'ES': (BASE_ES['Y0'], BASE_ES['c'], BASE_ES['k_eps']),
+                 'VaR': (BASE_VAR['Y0'], 1.0, BASE_VAR['k_alpha'])}
+        smp = SIM.terminal_sample(specs, n=n, seed=20260803)
+        exact = {'Merton': X.merton_stats(), 'ES': X.es_stats(sol=BASE_ES),
+                 'VaR': X.var_stats(sol=BASE_VAR)}
+        tol = 1e-3 * np.sqrt(1_000_000 / n)
+        for name, ex in exact.items():
+            F = smp[name]
+            srt = np.sort(F)
+            nt = int(round(0.05 * n))
+            omg = 1 - P.GAMMA
+            got = {'mean': F.mean(), 'std': F.std(ddof=1),
+                   'prob_shortfall': (F < P.k).mean(),
+                   'exp_shortfall': np.maximum(P.k - F, 0).mean(),
+                   'q5': srt[nt - 1], 'bottom5_mean': srt[:nt].mean(),
+                   'ce': np.mean(F ** omg) ** (1 / omg)}
+            for kk, v in got.items():
+                assert abs(v - ex[kk]) < tol, f'{name}.{kk}: {v} vs {ex[kk]}'

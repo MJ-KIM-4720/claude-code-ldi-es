@@ -21,7 +21,16 @@ MC 파이프라인은 삭제하지 않고 검증 + Figure 8 용도로 유지.
 전부 불변이고 r̃만 움직인다 → `params.override_delta_L()`. 테스트에서 자산
 불변을 assert 한다.
 
-**(e) A_ES 계산식은 wedge form 유지** (결정 11-d). exact_stats는 A를 쓰지
+**(e) 원고 Table 2는 MC(N=10⁶ terminal draws), 캘리브레이션은 exact.**
+(사용자 결정) claim이 경로에 `Y_T`로만 의존하므로 terminal 분포에서 직접
+뽑는다 — 이산화 오차 0, N=10⁶이 저렴. 전 전략이 같은 표준정규를 공유(CRN).
+전 항목이 closed form 대비 <10⁻³ (max 7.76e−4) 임을 assert 한다.
+`table_exact_summary.tex` 생성은 취소.
+**단 CE loss 열만 예외** — 퍼센트 포인트라 오차가 100배 증폭돼 ≈0.017 pp가
+되고, 정의상 동일해야 할 ES/equal-CE VaR 행이 다르게 찍힌다. 그 열만
+closed-form 값을 싣고 각주로 밝혔다 (CSV엔 둘 다 보관).
+
+**(f) A_ES 계산식은 wedge form 유지** (결정 11-d). exact_stats는 A를 쓰지
 않지만, 두 경로가 같은 claim 파라미터를 쓰므로 일관성이 유지된다.
 
 ## 11. Joint system + fixed claim 으로 전면 재설계 (2026-08) ★

@@ -36,6 +36,12 @@ DEFAULT_N_STEPS = 120          # monthly over T = 10y (12 steps/year)
 DEFAULT_SEED = 20260803
 SCHEME = "exact GBM (log-Euler is exact for the reference process)"
 
+# Terminal-only sampling (Table 2). The claim depends on the path ONLY through
+# Y_T, so the reported table needs no path at all: draw Y_T straight from its
+# exact lognormal law. That is what makes N = 10^6 cheap.
+DEFAULT_N_TERMINAL = 1_000_000
+TERMINAL_SCHEME = "exact lognormal terminal draws (no path discretisation)"
+
 
 # ═══════════════════════════════════════════════════════════
 # Reference process
@@ -57,6 +63,55 @@ def reference_paths(Y0, n_paths=DEFAULT_N_PATHS, n_steps=DEFAULT_N_STEPS,
         [np.full((n_paths, 1), np.log(Y0)),
          np.log(Y0) + np.cumsum(incr, axis=1)], axis=1)
     return t_grid, np.exp(log_Y), Z
+
+
+# ═══════════════════════════════════════════════════════════
+# Terminal-only sampling  (Table 2)
+# ═══════════════════════════════════════════════════════════
+
+def terminal_draws(Y0, n=DEFAULT_N_TERMINAL, seed=DEFAULT_SEED, Z=None):
+    """Exact lognormal draws of Y_T. No path, no discretisation error.
+
+    Pass Z to reuse the same standard normals across strategies (common
+    random numbers) — the strategies then differ only through Y0 and the
+    claim, which is what makes differences such as the CE loss comparable.
+    """
+    if Z is None:
+        Z = np.random.default_rng(seed).standard_normal(n)
+    return Y0 * np.exp(P.m_P * P.T + P.sigma_Y * np.sqrt(P.T) * Z)
+
+
+def claim_from_params(y, c, k_low, k=None):
+    """Generic piecewise claim g(y) = c·y | k | y (same form as exact_stats).
+
+    In the middle segment the payoff is EXACTLY k, so the probability atom
+    P(F_T = k) can be counted by equality testing.
+    """
+    if k is None:
+        k = P.k
+    y = np.asarray(y, dtype=float)
+    return np.where(y < k_low, c * y, np.where(y < k, k, y))
+
+
+def terminal_sample(sols, n=DEFAULT_N_TERMINAL, seed=DEFAULT_SEED):
+    """Terminal funding-ratio samples for several claims on common normals.
+
+    Args:
+        sols: {label: (Y0, c, k_low)}
+    Returns {label: F_T array} plus the shared Z under key '_Z'.
+    """
+    Z = np.random.default_rng(seed).standard_normal(n)
+    out = {'_Z': Z}
+    for label, (Y0, c, k_low) in sols.items():
+        out[label] = claim_from_params(terminal_draws(Y0, n, Z=Z), c, k_low)
+    return out
+
+
+def atom_fraction(F_T, k=None):
+    """Sample P(F_T = k) — the mass sitting exactly on the target."""
+    if k is None:
+        k = P.k
+    return float(np.mean(np.asarray(F_T) == k))
 
 
 # ═══════════════════════════════════════════════════════════

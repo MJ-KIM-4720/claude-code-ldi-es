@@ -175,6 +175,8 @@ def claim_stats(Y0, c=1.0, k_low=None, k=None, gamma=None, T=None,
         'mean': float(mean),
         'std': float(np.sqrt(var)),
         'prob_shortfall': float(p1),
+        # probability atom: the flat segment pays exactly k
+        'atom_mass': float(p2 - p1),
         'exp_shortfall': float(exp_sf),
         'cond_shortfall': float(cond_sf),
         'q5': float(q_tail),

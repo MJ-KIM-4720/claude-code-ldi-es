@@ -22,7 +22,7 @@ The core contribution: ES eliminates gambling incentives that VaR creates for un
 │   ├── bs_utils.py            # Black-Scholes 함수 (put, digital put, deltas)
 │   ├── es_model.py            # ES joint solver + fixed-claim A (InfeasibleError)
 │   ├── var_model.py           # VaR joint solver + quantile-hedging feasibility
-│   ├── simulate.py            # fixed-claim MC + 복제 검증 (검증/Figure 8 전용)
+│   ├── simulate.py            # 경로 MC(복제검증) + terminal draws(원고 Table 2)
 │   ├── exact_stats.py         # ★ closed-form terminal 통계 + exact equal-CE
 │   ├── compare.py             # Mode A / Mode B / 민감도 / feasibility 그림
 │   └── style.py               # 공통 figure 스타일
@@ -32,7 +32,7 @@ The core contribution: ES eliminates gambling incentives that VaR creates for un
 │   ├── run_exact.py           # ★ exact 통계/표 + α_min + δ_L + Figure 시안
 │   └── legacy/                # 구 방법론(단일 식) 스크립트 — 참고용, 실행 금지
 │
-├── tests/                     # pytest 기반 테스트 (146 passed)
+├── tests/                     # pytest 기반 테스트 (153 passed)
 │   ├── test_params.py         # 파라미터 + feasibility band 검증
 │   ├── test_es_model.py       # joint system, wedge identity, no-gambling
 │   ├── test_var_model.py      # joint system, quantile-hedging, gambling
@@ -51,7 +51,10 @@ The core contribution: ES eliminates gambling incentives that VaR creates for un
 │
 ├── results/                   # CSV 산출물 (git 포함)
 │   ├── diagnostics.csv        # residual, 복제오차, baseline 해, MC 설정
-│   ├── table2_exact.csv       # ★ Table 2 (exact, 원고용)
+│   ├── table2_mc1e6.csv       # ★ 원고 Table 2 (MC, N=10^6 terminal draws)
+│   ├── table_mc_summary.tex   # ★ 원고 Table 2 tex (SE 행 없음)
+│   ├── table2_exact.csv       # closed-form 벤치마크 (검증·캘리브레이션용)
+│   ├── table2_mc_vs_exact.md  # MC vs exact (<1e-3) 대조
 │   ├── headline_numbers.md    # ★ 원고 반영용 headline
 │   ├── exact_vs_mc.md         # exact vs MC (±3 SE) 대조
 │   ├── table_sensitivity_v2.* # Table 3 + α_min 열
@@ -110,12 +113,17 @@ pi_S, pi_I = ES.optimal_portfolio(y, s['k_eps'], s['c'], tau)
 # Cross-sectional: one fund per F0, each solving its own joint system
 A = ES.cross_sectional_A(F0=1.05, eps=0.10, strict=False)   # nan if infeasible
 
-# Fixed-claim Monte Carlo (검증 + Figure 8 전용; 원고 수치는 exact 사용)
+# 경로 MC (복제 검증용)
 res = SIM.run(F0=1.0, n_paths=10_000, n_steps=120, seed=20260803)
 
-# EXACT (closed form) — 원고 Table 2는 전부 여기서 나온다
+# 원고 Table 2 = terminal-draw MC (경로 불필요, N=10^6, exact lognormal)
+smp = SIM.terminal_sample({'ES': (s['Y0'], s['c'], s['k_eps'])},
+                          n=1_000_000, seed=20260803)
+SIM.atom_fraction(smp['ES'])           # P(F_T = k) 표본비율 ≈ 0.4784
+
+# EXACT (closed form) — 캘리브레이션 + MC 검증 기준값 + headline
 from ldi import exact_stats as X
-X.merton_stats(); X.es_stats(sol=s); X.var_stats(alpha=0.10)
+X.merton_stats(); X.es_stats(sol=s); X.var_stats(alpha=0.10)   # + atom_mass
 X.match_alpha_equal_ce()['alpha']      # 0.081178 (seed 무관)
 X.match_alpha_threshold()['alpha']     # 0.106663
 VaR.alpha_min()                        # 0.015975  VaR feasibility bound
@@ -179,7 +187,8 @@ Baseline: `F0 = 1.0`, `eps = 0.10`, `alpha = 0.10`, `T = 10`, `k = 1`, `gamma = 
 | threshold-matched alpha | 0.1066267 |
 | `alpha_min` (VaR feasibility bound) | 0.0159749 |
 
-**Exact (closed form) — 원고 Table 2 기준값:**
+**Exact (closed form) — MC 검증 기준값. 원고 Table 2는 MC(N=10⁶) 버전이며
+두 값의 차이는 전 항목 <10⁻³ (`results/table2_mc_vs_exact.md`):**
 
 | 항목 | Merton | ES (ε=0.10) | VaR equal-CE (α=0.081178) |
 |---|---|---|---|
@@ -190,12 +199,13 @@ Baseline: `F0 = 1.0`, `eps = 0.10`, `alpha = 0.10`, `T = 10`, `k = 1`, `gamma = 
 | Q05 | 0.71310 | 0.78746 | 0.63363 |
 | **Bottom-5% 평균** | 0.64554 | **0.71285** | 0.57360 |
 | CE | 1.008236 | 0.985302 | 0.985302 |
+| atom `P(F_T=k)` | 0 | 0.478446 | 0.496341 |
 
 Headline: 동일 CE loss 2.275% 에서 bottom-5% **+24.28%**, 조건부 부족분
 **3.016배**. 전체는 `NOTES.md` §11, `results/headline_numbers.md`.
 
 **이 값들은 regression test의 기준이다. 코드 수정 후 반드시 `pytest tests/ -v`
-(146 passed) 로 확인할 것.**
+(153 passed) 로 확인할 것.**
 
 ---
 
@@ -227,14 +237,17 @@ Headline: 동일 CE loss 2.275% 에서 bottom-5% **+24.28%**, 조건부 부족�
    숫자가 나왔다고 해가 있는 것이 아니다 (`notes/bugs.md` 2026-08-03 참조)
 6. **경로/그림 위에서 threshold 재계산 금지** — `A(t,y)`는 t=0에 고정된 claim의
    delta다. y마다 k_eps를 다시 풀면 매 상태에서 다른 claim을 가격하는 셈
-7. **MC 수치를 원고에 쓰지 말 것** — equal-CE α가 seed에 따라 0.0856(MC) vs
-   0.0812(exact)로 달라진다. terminal 통계는 전부 closed form이 있다
-   (`ldi/exact_stats.py`)
-8. **matplotlib에 LaTeX 이스케이프 금지** — usetex를 쓰지 않으므로 `\&`, `\%`가
+7. **캘리브레이션은 exact로, 표는 MC(N=10⁶)로** — equal-CE α를 MC로 풀면
+   seed에 따라 0.0856 vs 0.0812로 달라진다. α는 `exact_stats`로 고정하고,
+   Table 2는 그 α로 terminal-draw MC를 돌려 만든다 (오차 <10⁻³)
+8. **CE loss 열은 퍼센트 포인트라 MC 오차가 100배 증폭된다** (≈0.017 pp).
+   그대로 실으면 정의상 같아야 할 ES와 equal-CE VaR이 다르게 찍힌다 →
+   해당 열만 closed-form 값 사용 (각주 명시)
+9. **matplotlib에 LaTeX 이스케이프 금지** — usetex를 쓰지 않으므로 `\&`, `\%`가
    리터럴로 찍힌다. 일반 텍스트엔 `&`, `%` 그대로
-9. **μ_I 민감도는 dual channel** — 부채(β₁μ_I)와 IIB 초과수익을 동시에 움직인다.
+10. **μ_I 민감도는 dual channel** — 부채(β₁μ_I)와 IIB 초과수익을 동시에 움직인다.
    liability 채널만 보려면 `P.override_delta_L()` (β₀만 이동)
-10. **파라미터를 바꾸면 ε_min이 바뀐다** — 특히 μ_I, T (r̃ 경유). 민감도 분석에서
+11. **파라미터를 바꾸면 ε_min이 바뀐다** — 특히 μ_I, T (r̃ 경유). 민감도 분석에서
    baseline ε=0.10이 infeasible해지는 config가 실제로 존재 (μ_I≥0.03, T≥15)
 
 <!-- Claude: 새로운 실수를 발견하면 번호를 이어서 여기에 추가해라 -->

@@ -166,7 +166,12 @@ def _f(x, nd=4, dash='---'):
     return f'{x:.{nd}f}'
 
 
-def write_table2_tex(rows, path):
+def write_table2_mc_tex(rows, path, n_terminal, seed):
+    """Table 2 from the terminal-draw Monte Carlo (no SE rows).
+
+    The CE-loss column is the CLOSED-FORM calibration value, not an MC
+    estimate — see the note written into the file for why.
+    """
     body = []
     for r in rows:
         body.append(
@@ -174,11 +179,12 @@ def write_table2_tex(rows, path):
             f"{_f(r['prob_shortfall'],4)} & {_f(r['exp_shortfall'],4)} & "
             f"{_f(r['cond_shortfall'],4)} & {_f(r['q5'],4)} & "
             f"{_f(r['bottom5_mean'],4)} & {_f(r['ce'],4)} & "
-            f"{_f(r['ce_loss_pct'],3)} \\\\")
+            f"{_f(r['ce_loss_pct_exact'],3)} \\\\")
     tex = r"""\begin{table}[htbp]
 \centering
-\caption{Model-implied terminal statistics ($F_0 = %s$, $T = %s$)}
-\label{tab:exact_summary}
+\caption{Terminal distribution of the funding ratio ($F_0 = %s$, $T = %s$,
+$N = %s$ simulated terminal draws)}
+\label{tab:mc_summary}
 \begin{tabular}{l ccccccccc}
 \toprule
  & & & & Expected & Conditional & & Bottom-5\%% & & CE \\
@@ -188,8 +194,16 @@ Strategy & $\mathrm{E}[F_T]$ & $\mathrm{Std}[F_T]$ & $\mathrm{P}(F_T<k)$
 %s
 \bottomrule
 \end{tabular}
+
+\vspace{2pt}
+{\footnotesize Simulation standard errors are below $10^{-3}$ for all entries
+and are omitted. The certainty-equivalent loss is reported at its closed-form
+value: it is the calibration target that defines the equal-CE row, and its
+Monte Carlo counterpart carries an error of about $2\times10^{-2}$ percentage
+points, which would make the two matched rows print differently.}
 \end{table}
-""" % (_f(P.F0, 1), _f(P.T, 0), '\n'.join(body))
+""" % (_f(P.F0, 1), _f(P.T, 0), f'{n_terminal:,}'.replace(',', '{,}'),
+       '\n'.join(body))
     with open(path, 'w') as fh:
         fh.write(tex)
 
@@ -409,39 +423,122 @@ def fig_eps_min_muI_v2(mu_range=(0.01, 0.05), n=300, F0=None, save_path=None):
     return fig
 
 
-def fig_terminal_variants(res, out_dir):
-    """Figure 8 drafts: (a) left-tail zoom inset, (b) CDF version."""
-    keys = {'merton': 'Merton', 'es': 'ES', 'var': 'VaR'}
-    bins = np.linspace(0.3, 2.2, 90)
+def mc_terminal_stats(F_T, k=None, tail_q=TAIL_Q):
+    """Sample counterparts of exact_stats.claim_stats, same definitions."""
+    if k is None:
+        k = P.k
+    F_T = np.asarray(F_T, dtype=float)
+    n = len(F_T)
+    srt = np.sort(F_T)
+    n_tail = int(round(tail_q * n))
+    short = F_T < k
+    p1 = float(short.mean())
+    exp_sf = float(np.maximum(k - F_T, 0.0).mean())
+    omg = 1.0 - P.GAMMA
+    return {
+        'mean': float(F_T.mean()),
+        'std': float(F_T.std(ddof=1)),
+        'prob_shortfall': p1,
+        'exp_shortfall': exp_sf,
+        'cond_shortfall': exp_sf / p1 if p1 > 0 else 0.0,
+        'q5': float(srt[n_tail - 1]),
+        'bottom5_mean': float(srt[:n_tail].mean()),
+        'ce': float(np.mean(F_T ** omg) ** (1.0 / omg)),
+        'atom_mass': SIM.atom_fraction(F_T, k),
+    }
 
-    # (a) histogram with a left-tail inset
+
+# columns that must agree with the closed form to |error| < 1e-3
+MC_TOL = 1e-3
+MC_CHECK_KEYS = ['mean', 'std', 'prob_shortfall', 'exp_shortfall',
+                 'cond_shortfall', 'q5', 'bottom5_mean', 'ce', 'atom_mass']
+
+
+def build_table2_mc(exact_rows, specs, n_terminal, seed, tol=None):
+    """Table 2 from N terminal draws on common random numbers.
+
+    tol defaults to MC_TOL at the full sample size and is scaled by
+    sqrt(N_full/N) otherwise, since the MC error is O(1/sqrt(N)) — a smoke
+    run at a smaller N must not be judged against the full-N tolerance.
+
+    Returns (rows, log_lines, failures, samples).
+    """
+    if tol is None:
+        tol = MC_TOL * np.sqrt(SIM.DEFAULT_N_TERMINAL / n_terminal)
+    samples = SIM.terminal_sample(specs, n=n_terminal, seed=seed)
+    ce_m = mc_terminal_stats(samples['Merton'])['ce']
+    ce_m_exact = exact_rows[0]['ce']
+
+    rows, log, failures = [], [], []
+    log.append(f"{'row':<40}{'statistic':<16}{'MC':>12}{'exact':>12}"
+               f"{'|diff|':>11}  status")
+    log.append('-' * 95)
+    for ex, (label, _) in zip(exact_rows, specs.items()):
+        st = mc_terminal_stats(samples[label])
+        for kk in MC_CHECK_KEYS:
+            diff = abs(st[kk] - ex[kk])
+            ok = diff < tol
+            if not ok:
+                failures.append((ex['label'], kk, st[kk], ex[kk], diff))
+            log.append(f"{ex['label']:<40}{kk:<16}{st[kk]:>12.6f}"
+                       f"{ex[kk]:>12.6f}{diff:>11.2e}  "
+                       f"{'ok' if ok else 'FAIL'}")
+        r = dict(strategy=ex['label'], tex_label=ex['tex_label'], **st)
+        r['ce_loss_pct_mc'] = 100.0 * (ce_m - st['ce']) / ce_m
+        r['ce_loss_pct_exact'] = 100.0 * (ce_m_exact - ex['ce']) / ce_m_exact
+        r['atom_mass_exact'] = ex['atom_mass']
+        rows.append(r)
+    return rows, log, failures, samples
+
+
+def _ecdf(x_sorted, grid):
+    """Empirical CDF evaluated on a grid (cheap for N = 10^6)."""
+    return np.searchsorted(x_sorted, grid, side='right') / len(x_sorted)
+
+
+def _cdf_grid(lo, hi, n=1500, k=None):
+    """Grid that straddles the atom at k so the jump is not smoothed away."""
+    if k is None:
+        k = P.k
+    g = np.linspace(lo, hi, n)
+    return np.unique(np.concatenate([g, [k - 1e-12, k, k + 1e-12]]))
+
+
+def fig_terminal_variants(samples, out_dir, n_terminal):
+    """Figure 8 drafts (a) histogram+inset, (b) CDF, (c) CDF with atom jumps.
+
+    All three use the same N = 10^6 terminal draws.
+    """
+    keys = {'Merton': 'Merton', 'ES': 'ES', 'VaR': 'VaR'}
+    F = {k: samples[k] for k in keys}
+    srt = {k: np.sort(v) for k, v in F.items()}
+    cv = {k: float(np.sort(v)[:int(round(TAIL_Q * len(v)))].mean())
+          for k, v in F.items()}
+    tag = f'$N=10^{{{int(round(np.log10(n_terminal)))}}}$'
+
+    # ── (a) histogram with left-tail inset ──
+    bins = np.linspace(0.3, 2.2, 90)
     fig, ax = plt.subplots(figsize=FIGSIZES['single'])
     for name, key in keys.items():
-        ax.hist(res[name]['F'][:, -1], bins=bins, alpha=HIST_ALPHA,
-                color=COLORS[key],
-                label=f"{key} (CVaR$_5$={res[name]['stats']['cvar05']:.3f})")
+        ax.hist(F[name], bins=bins, alpha=HIST_ALPHA, color=COLORS[key],
+                label=f'{key} (CVaR$_5$={cv[name]:.3f})')
     add_k_vline(ax)
-    ax.set_xlabel('Terminal funding ratio $F_T$')
-    ax.set_ylabel('Frequency')
-    ax.set_title('Terminal distribution with left-tail detail')
-    ax.legend(**LEGEND)
-    setup_grid(ax)
-
-    # shade the source region instead of drawing zoom connectors: the region
-    # is a thin sliver at the baseline, so connector lines cross the whole
-    # panel and read as clutter.
     ax.axvspan(0.4, 0.9, color='0.5', alpha=0.08, zorder=0)
     y_top = ax.get_ylim()[1]
     ax.annotate('atom at $F_T=k$\n(protected states)',
                 xy=(1.0, 0.20 * y_top), xytext=(1.30, 0.17 * y_top),
                 fontsize=10,
                 arrowprops=dict(arrowstyle='->', color='0.35', lw=1.2))
+    ax.set_xlabel('Terminal funding ratio $F_T$')
+    ax.set_ylabel('Frequency')
+    ax.set_title(f'Terminal distribution with left-tail detail ({tag})')
+    ax.legend(**LEGEND)
+    setup_grid(ax)
 
     axin = ax.inset_axes([0.09, 0.50, 0.34, 0.38])
     zbins = np.linspace(0.4, 0.9, 45)
     for name, key in keys.items():
-        axin.hist(res[name]['F'][:, -1], bins=zbins, alpha=HIST_ALPHA,
-                  color=COLORS[key])
+        axin.hist(F[name], bins=zbins, alpha=HIST_ALPHA, color=COLORS[key])
     axin.set_xlim(0.4, 0.9)
     axin.set_title('left tail (shaded region)', fontsize=10)
     axin.tick_params(labelsize=9)
@@ -451,36 +548,76 @@ def fig_terminal_variants(res, out_dir):
     plt.tight_layout()
     savefig(fig, os.path.join(out_dir, 'mc_terminal_y010_inset.png'))
 
-    # (b) empirical CDF
+    # ── (b) plain empirical CDF ──
+    grid = _cdf_grid(0.4, 1.8)
     fig, ax = plt.subplots(figsize=FIGSIZES['single'])
-    cdfs = {}
     for name, key in keys.items():
-        x = np.sort(res[name]['F'][:, -1])
-        y = np.arange(1, len(x) + 1) / len(x)
-        cdfs[name] = (x, y)
-        ax.plot(x, y, label=key, **LINE_STYLES[key])
+        ax.plot(grid, _ecdf(srt[name], grid), label=key, **LINE_STYLES[key])
     add_k_vline(ax)
     ax.axhline(TAIL_Q, color='0.4', ls=':', lw=1.2, label='5% level')
-
-    # where the ES and VaR CDFs cross: below it ES is first-order better
-    grid = np.linspace(0.45, 0.98, 2000)
-    d = (np.interp(grid, *cdfs['es']) - np.interp(grid, *cdfs['var']))
-    sign = np.where(np.diff(np.sign(d)))[0]
-    if sign.size:
-        xc = grid[sign[-1]]
-        yc = float(np.interp(xc, *cdfs['es']))
-        ax.plot(xc, yc, 'o', ms=8, color='k', zorder=5)
+    xs = np.linspace(0.45, 0.98, 2000)
+    d = _ecdf(srt['ES'], xs) - _ecdf(srt['VaR'], xs)
+    sc = np.where(np.diff(np.sign(d)))[0]
+    if sc.size:
+        xc = xs[sc[-1]]
+        ax.plot(xc, _ecdf(srt['ES'], np.array([xc]))[0], 'o', ms=8,
+                color='k', zorder=5)
         ax.annotate(f'CDFs cross at $F_T$={xc:.3f}\nbelow: ES has less mass',
-                    (xc, yc), textcoords='offset points', xytext=(12, -34),
-                    fontsize=10)
+                    (xc, _ecdf(srt['ES'], np.array([xc]))[0]),
+                    textcoords='offset points', xytext=(12, -34), fontsize=10)
     ax.set_xlim(0.4, 1.8)
     ax.set_xlabel('Terminal funding ratio $F_T$')
     ax.set_ylabel('$P(F_T \\leq x)$')
-    ax.set_title('Terminal distribution (empirical CDF)')
+    ax.set_title(f'Terminal distribution (empirical CDF, {tag})')
     ax.legend(**LEGEND)
     setup_grid(ax)
     plt.tight_layout()
     savefig(fig, os.path.join(out_dir, 'mc_terminal_y010_cdf.png'))
+
+    # ── (c) CDF with the atom jumps marked + left-tail sub-panel ──
+    fig, (ax, ax2) = plt.subplots(
+        1, 2, figsize=(15, 6), gridspec_kw={'width_ratios': [1.6, 1]})
+    for name, key in keys.items():
+        ax.plot(grid, _ecdf(srt[name], grid), label=key, **LINE_STYLES[key])
+    add_k_vline(ax)
+    # the atom is the vertical jump of the CDF at F_T = k
+    for name, key in keys.items():
+        lo = _ecdf(srt[name], np.array([P.k - 1e-12]))[0]
+        hi = _ecdf(srt[name], np.array([P.k]))[0]
+        if hi - lo < 1e-6:
+            continue
+        ax.annotate('', xy=(P.k, hi), xytext=(P.k, lo),
+                    arrowprops=dict(arrowstyle='<->', color=COLORS[key],
+                                    lw=2.0, shrinkA=0, shrinkB=0))
+        ax.annotate(f'{key}: $P(F_T\\!=\\!k)$={hi - lo:.4f}',
+                    xy=(P.k, (lo + hi) / 2), xytext=(8, -4),
+                    textcoords='offset points', fontsize=10,
+                    color=COLORS[key])
+    ax.axhline(TAIL_Q, color='0.4', ls=':', lw=1.2, label='5% level')
+    ax.set_xlim(0.4, 1.8)
+    ax.set_xlabel('Terminal funding ratio $F_T$')
+    ax.set_ylabel('$P(F_T \\leq x)$')
+    ax.set_title('Empirical CDF with the probability atom at $k$')
+    ax.legend(**LEGEND)
+    setup_grid(ax)
+
+    gridL = np.linspace(0.4, 0.9, 800)
+    for name, key in keys.items():
+        ax2.plot(gridL, _ecdf(srt[name], gridL), label=key, **LINE_STYLES[key])
+    ax2.axhline(TAIL_Q, color='0.4', ls=':', lw=1.2)
+    for name, key in keys.items():
+        ax2.plot(cv[name], TAIL_Q, 'o', ms=7, color=COLORS[key])
+    ax2.set_xlim(0.4, 0.9)
+    ax2.set_xlabel('Terminal funding ratio $F_T$')
+    ax2.set_ylabel('$P(F_T \\leq x)$')
+    ax2.set_title('Left tail $F_T \\leq 0.9$ (markers: CVaR$_5$)')
+    ax2.legend(**LEGEND)
+    setup_grid(ax2)
+
+    plt.suptitle(f'Terminal distribution: atom and left tail ({tag})',
+                 fontsize=13)
+    plt.tight_layout()
+    savefig(fig, os.path.join(out_dir, 'mc_terminal_y010_cdf_atom.png'))
 
 
 # ═══════════════════════════════════════════════════════════
@@ -525,9 +662,10 @@ def main():
 
     fields = ['label', 'mean', 'std', 'prob_shortfall', 'exp_shortfall',
               'cond_shortfall', 'q5', 'bottom5_mean', 'ce', 'ce_loss_pct',
-              'Y0', 'c', 'k_low']
+              'atom_mass', 'Y0', 'c', 'k_low']
     write_csv(rows, os.path.join(RES, 'table2_exact.csv'), fields)
-    write_table2_tex(rows, os.path.join(RES, 'table_exact_summary.tex'))
+    # NOTE: no .tex here. exact_stats feeds (a) the equal-CE calibration,
+    # (b) the MC verification benchmark and (c) headline_numbers.md only.
 
     hdr = (f"{'strategy':<42}{'mean':>9}{'std':>9}{'P(F<k)':>9}{'E[(k-F)+]':>11}"
            f"{'CondSF':>9}{'Q5':>9}{'Bot5':>9}{'CE':>10}{'CEloss%':>9}")
@@ -588,6 +726,69 @@ def main():
         print(f"    WARNING (not a failure): {lbl} {kk} is {z:+.2f} SE from MC")
     if not mc_flags:
         print("    all statistics within 3 SE")
+    print()
+
+    # ── Task 6: Table 2 from N = 1e6 terminal draws ───────
+    n_term = 50_000 if args.quick else SIM.DEFAULT_N_TERMINAL
+    print(f"Table 2 — terminal-draw MC (N={n_term:,}, seed={SIM.DEFAULT_SEED}, "
+          f"{SIM.TERMINAL_SCHEME})")
+    s_eq = VaR.solve_var(alpha=eq['alpha'])
+    s_thr = VaR.solve_var(alpha=thr['alpha'])
+    specs = {
+        'Merton':   (P.F0, 1.0, P.k),
+        'ES':       (sol_es['Y0'], sol_es['c'], sol_es['k_eps']),
+        'VaR':      (sol_var['Y0'], 1.0, sol_var['k_alpha']),
+        'VaR_eqCE': (s_eq['Y0'], 1.0, s_eq['k_alpha']),
+        'VaR_thr':  (s_thr['Y0'], 1.0, s_thr['k_alpha']),
+    }
+    mc_tol = MC_TOL * np.sqrt(SIM.DEFAULT_N_TERMINAL / n_term)
+    mc_rows, mc_log, mc_fail, samples = build_table2_mc(
+        rows, specs, n_term, SIM.DEFAULT_SEED)
+
+    write_csv(mc_rows, os.path.join(RES, 'table2_mc1e6.csv'),
+              ['strategy'] + MC_CHECK_KEYS +
+              ['ce_loss_pct_mc', 'ce_loss_pct_exact', 'atom_mass_exact'])
+    write_table2_mc_tex(mc_rows, os.path.join(RES, 'table_mc_summary.tex'),
+                        n_term, SIM.DEFAULT_SEED)
+    with open(os.path.join(RES, 'table2_mc_vs_exact.md'), 'w') as fh:
+        fh.write(f"# Table 2 (MC) vs closed form\n\nN = {n_term:,}, "
+                 f"seed = {SIM.DEFAULT_SEED}, {SIM.TERMINAL_SCHEME}, "
+                 f"common random numbers.\nTolerance |MC - exact| < "
+                 f"{mc_tol:g} on every checked column.\n\n```\n"
+                 + '\n'.join(mc_log) + "\n```\n")
+
+    hdr = (f"{'strategy':<42}{'mean':>9}{'std':>9}{'P(F<k)':>9}"
+           f"{'E[(k-F)+]':>11}{'CondSF':>9}{'Q5':>9}{'Bot5':>9}{'CE':>10}"
+           f"{'CEloss%':>9}")
+    print(hdr)
+    print('-' * len(hdr))
+    for r in mc_rows:
+        print(f"{r['strategy']:<42}{r['mean']:>9.5f}{r['std']:>9.5f}"
+              f"{r['prob_shortfall']:>9.5f}{r['exp_shortfall']:>11.5f}"
+              f"{r['cond_shortfall']:>9.5f}{r['q5']:>9.5f}"
+              f"{r['bottom5_mean']:>9.5f}{r['ce']:>10.6f}"
+              f"{r['ce_loss_pct_exact']:>9.4f}")
+
+    worst = max((abs(r[kk] - ex[kk]) for r, ex in zip(mc_rows, rows)
+                 for kk in MC_CHECK_KEYS), default=0.0)
+    print(f"    max |MC - exact| over all checked entries = {worst:.2e} "
+          f"(tolerance {mc_tol:g})")
+    if mc_fail:
+        for lbl, kk, got, exp, d in mc_fail:
+            print(f"    FAIL {lbl} {kk}: MC {got:.6f} vs exact {exp:.6f} "
+                  f"(|diff| {d:.2e})")
+        raise AssertionError(f'{len(mc_fail)} Table 2 entries exceed {mc_tol:g}')
+
+    # atom cross-check
+    print("    atom P(F_T = k): sample vs theory")
+    for r in mc_rows:
+        print(f"      {r['strategy']:<40}{r['atom_mass']:.6f} vs "
+              f"{r['atom_mass_exact']:.6f}  "
+              f"(|diff| {abs(r['atom_mass']-r['atom_mass_exact']):.2e})")
+    ce_dev = max(abs(r['ce_loss_pct_mc'] - r['ce_loss_pct_exact'])
+                 for r in mc_rows)
+    print(f"    CE loss: table reports the closed-form value; the MC "
+          f"counterpart deviates by up to {ce_dev:.3f} pp")
     print()
 
     # ── Sensitivity + alpha_min ───────────────────────────
@@ -710,10 +911,11 @@ worse than no constraint at all.
     print()
     print("Figures ...")
     fig_eps_min_muI_v2(save_path=os.path.join(OUT_C, 'eps_min_muI_v2.png'))
-    fig_terminal_variants(mc, OUT_F)
+    fig_terminal_variants(samples, OUT_F, n_term)
     print(f"    {os.path.relpath(os.path.join(OUT_C, 'eps_min_muI_v2.png'), ROOT)}")
     print(f"    {os.path.relpath(os.path.join(OUT_F, 'mc_terminal_y010_inset.png'), ROOT)}")
     print(f"    {os.path.relpath(os.path.join(OUT_F, 'mc_terminal_y010_cdf.png'), ROOT)}")
+    print(f"    {os.path.relpath(os.path.join(OUT_F, 'mc_terminal_y010_cdf_atom.png'), ROOT)}")
 
     if failures:
         print()
