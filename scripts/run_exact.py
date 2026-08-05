@@ -10,15 +10,18 @@ The MC pipeline is NOT removed — it is retained for the Figure 8 histogram
 and is used here only as an independent cross-check of the exact formulas.
 
 Outputs
-    results/table2_exact.csv          Table 2, exact
-    results/table_exact_summary.tex   Table 2 body (no SE rows)
-    results/exact_vs_mc.md            exact vs MC (+-3 SE) reconciliation
+    results/table2_mc1e6.csv          Table 2 (N = 10^6 terminal draws)
+    results/table_mc_summary.tex      Table 2 body (no SE rows)
+    results/table2_mc_vs_exact.md     Table 2 MC vs closed form (< 1e-3)
+    results/table2_exact.csv          closed-form benchmark
+    results/exact_vs_mc.md            path MC vs closed form (+-3 SE)
     results/headline_numbers.md       manuscript-ready headline figures
     results/table_sensitivity_v2.csv/.tex   Table 3 + alpha_min column
     results/table_deltaL.csv/.tex     delta_L comparative statics
     outputs/common/eps_min_muI_v2.png       Figure 6 draft with alpha_min
     outputs/fixed_claim/mc_terminal_y010_inset.png   Figure 8 draft (a)
     outputs/fixed_claim/mc_terminal_y010_cdf.png     Figure 8 draft (b)
+    outputs/fixed_claim/mc_terminal_y010_cdf_atom.png Figure 8 draft (c)
 
 Run:  python3 scripts/run_exact.py [--quick]
 """
@@ -169,8 +172,10 @@ def _f(x, nd=4, dash='---'):
 def write_table2_mc_tex(rows, path, n_terminal, seed):
     """Table 2 from the terminal-draw Monte Carlo (no SE rows).
 
-    The CE-loss column is the CLOSED-FORM calibration value, not an MC
-    estimate — see the note written into the file for why.
+    The last two columns (CE and CE loss) are the CLOSED-FORM values: the CE
+    is the calibration target that defines the equal-CE row, and its Monte
+    Carlo counterpart would print the two matched rows differently. Every
+    other column is simulated.
     """
     body = []
     for r in rows:
@@ -178,7 +183,7 @@ def write_table2_mc_tex(rows, path, n_terminal, seed):
             f"  {r['tex_label']} & {_f(r['mean'],4)} & {_f(r['std'],4)} & "
             f"{_f(r['prob_shortfall'],4)} & {_f(r['exp_shortfall'],4)} & "
             f"{_f(r['cond_shortfall'],4)} & {_f(r['q5'],4)} & "
-            f"{_f(r['bottom5_mean'],4)} & {_f(r['ce'],4)} & "
+            f"{_f(r['bottom5_mean'],4)} & {_f(r['ce_exact'],4)} & "
             f"{_f(r['ce_loss_pct_exact'],3)} \\\\")
     tex = r"""\begin{table}[htbp]
 \centering
@@ -196,11 +201,9 @@ Strategy & $\mathrm{E}[F_T]$ & $\mathrm{Std}[F_T]$ & $\mathrm{P}(F_T<k)$
 \end{tabular}
 
 \vspace{2pt}
-{\footnotesize Simulation standard errors are below $10^{-3}$ for all entries
-and are omitted. The certainty-equivalent loss is reported at its closed-form
-value: it is the calibration target that defines the equal-CE row, and its
-Monte Carlo counterpart carries an error of about $2\times10^{-2}$ percentage
-points, which would make the two matched rows print differently.}
+{\footnotesize The last two columns report closed-form certainty equivalents
+(the calibration target of the equal-CE row); all other columns are simulated,
+with standard errors below $10^{-3}$.}
 \end{table}
 """ % (_f(P.F0, 1), _f(P.T, 0), f'{n_terminal:,}'.replace(',', '{,}'),
        '\n'.join(body))
@@ -209,6 +212,15 @@ points, which would make the two matched rows print differently.}
 
 
 def write_sensitivity_tex(panels, path):
+    """Table 3 in the manuscript layout, with alpha_min added after A_VaR.
+
+    Columns: Parameter, Value, eps_min, eps_M, Status, k_eps, c, A_ES, A_VaR,
+    alpha_min. (Total-allocation columns dropped.)
+
+    In the epsilon panel the VaR quantities do not depend on epsilon at all,
+    so A_VaR and alpha_min are printed as "---" following the manuscript's
+    convention rather than repeating a constant down the block.
+    """
     blocks = []
     for pname, sym, rows in panels:
         lines = []
@@ -217,28 +229,42 @@ def write_sensitivity_tex(panels, path):
                     if i == 0 else "   & ")
             val = f"{r['value']:g}"
             if r['feasible']:
-                ke, aes, tot_es = _f(r['k_eps']), _f(r['A0'], 3), _f(r['tot_es'], 3)
+                ke, cc = _f(r['k_eps']), _f(r['c'], 3)
+                aes = _f(r['A0'], 3)
             else:
-                ke = aes = tot_es = '---'
+                ke = cc = aes = '---'
+            if pname == 'EPS':                       # VaR side is eps-invariant
+                avar = amin = '---'
+            else:
+                avar, amin = _f(r['A0_var'], 3), _f(r['alpha_min'], 5)
             lines.append(
-                f"{head}{val} & {ke} & {aes} & {_f(r['A0_var'],3)} & "
-                f"{_f(r['alpha_min'],5)} & {tot_es} & {_f(r['tot_var'],3)} \\\\")
+                f"{head}{val} & {_f(r['eps_min'])} & {_f(r['eps_M'])} & "
+                f"{r['status']} & {ke} & {cc} & {aes} & {avar} & {amin} \\\\")
         blocks.append('\n'.join(lines))
     tex = r"""\begin{table}[htbp]
 \centering
-\caption{Sensitivity of the joint solution, with the VaR feasibility bound
+\caption{Sensitivity of the joint solution and the feasibility bounds
 ($F_0 = %s$, $\varepsilon = %s$, $\alpha = %s$)}
 \label{tab:sensitivity_v2}
-\begin{tabular}{lc c cc c cc}
+\begin{tabular}{lc cc l cc cc c}
 \toprule
- & & & \multicolumn{2}{c}{Adjustment factor} & & \multicolumn{2}{c}{Total allocation} \\
-\cmidrule(lr){4-5} \cmidrule(lr){7-8}
-Parameter & Value & $k_\varepsilon$ & $A_{\mathrm{ES}}$ & $A_{\mathrm{VaR}}$
- & $\alpha_{\min}$ & ES & VaR \\
+Parameter & Value & $\varepsilon_{\min}$ & $\varepsilon_M$ & Status
+ & $k_\varepsilon$ & $c$ & $A_{\mathrm{ES}}$ & $A_{\mathrm{VaR}}$
+ & $\alpha_{\min}$ \\
 \midrule
 %s
 \bottomrule
 \end{tabular}
+
+\vspace{2pt}
+{\footnotesize Status is relative to the baseline $\varepsilon$: \emph{Binding}
+when $\varepsilon_{\min} < \varepsilon < \varepsilon_M$, \emph{Slack} when
+$\varepsilon \geq \varepsilon_M$ (the unconstrained solution already complies)
+and \emph{Infeasible} when $\varepsilon \leq \varepsilon_{\min}$, where no
+admissible strategy exists and the ES columns are left blank. In the
+$\varepsilon$ panel the VaR quantities are independent of $\varepsilon$ and are
+omitted. $\alpha_{\min}$ is free of $\gamma$ because $\lambda = \gamma\sigma_Y$
+does not depend on it.}
 \end{table}
 """ % (_f(P.F0, 1), _f(P.epsilon, 2), _f(P.alpha, 2),
        '\n  \\midrule\n'.join(blocks))
@@ -485,6 +511,7 @@ def build_table2_mc(exact_rows, specs, n_terminal, seed, tol=None):
                        f"{'ok' if ok else 'FAIL'}")
         r = dict(strategy=ex['label'], tex_label=ex['tex_label'], **st)
         r['ce_loss_pct_mc'] = 100.0 * (ce_m - st['ce']) / ce_m
+        r['ce_exact'] = ex['ce']
         r['ce_loss_pct_exact'] = 100.0 * (ce_m_exact - ex['ce']) / ce_m_exact
         r['atom_mass_exact'] = ex['atom_mass']
         rows.append(r)
@@ -610,7 +637,7 @@ def fig_terminal_variants(samples, out_dir, n_terminal):
     ax2.set_xlim(0.4, 0.9)
     ax2.set_xlabel('Terminal funding ratio $F_T$')
     ax2.set_ylabel('$P(F_T \\leq x)$')
-    ax2.set_title('Left tail $F_T \\leq 0.9$ (markers: CVaR$_5$)')
+    ax2.set_title('Left tail $F_T \\leq 0.9$ (markers: Bottom-5% mean)')
     ax2.legend(**LEGEND)
     setup_grid(ax2)
 
@@ -747,7 +774,8 @@ def main():
 
     write_csv(mc_rows, os.path.join(RES, 'table2_mc1e6.csv'),
               ['strategy'] + MC_CHECK_KEYS +
-              ['ce_loss_pct_mc', 'ce_loss_pct_exact', 'atom_mass_exact'])
+              ['ce_exact', 'ce_loss_pct_mc', 'ce_loss_pct_exact',
+               'atom_mass_exact'])
     write_table2_mc_tex(mc_rows, os.path.join(RES, 'table_mc_summary.tex'),
                         n_term, SIM.DEFAULT_SEED)
     with open(os.path.join(RES, 'table2_mc_vs_exact.md'), 'w') as fh:

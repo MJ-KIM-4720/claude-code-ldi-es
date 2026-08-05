@@ -7,7 +7,7 @@ Entry point that regenerates EVERYTHING downstream of the theory fix:
   outputs/fixed_claim/       Mode B figures + Monte Carlo (one fund, y-axis state)
   outputs/common/            mode-independent figures (feasibility floor, claims)
   results/diagnostics.csv    residuals, replication error, baseline solution
-  results/table2_mc.csv      Table 2 with bootstrap standard errors
+  results/table2_mc_paths.csv  path-based MC (replication diagnostic)
   results/sensitivity.csv    per-config eps_min / eps_M / feasibility
 
 Run:  python3 scripts/run_recompute.py [--quick]
@@ -31,6 +31,7 @@ from ldi import es_model as ES
 from ldi import var_model as VaR
 from ldi import compare as C
 from ldi import simulate as SIM
+from ldi import exact_stats as X
 from ldi.style import (apply_style, COLORS, LINE_STYLES, LEGEND, FIGSIZES,
                        setup_grid, add_k_vline, savefig, FAN_ALPHA, HIST_ALPHA)
 
@@ -225,13 +226,15 @@ def main():
         w.writerows(sens_rows)
 
     # ── Monte Carlo (fixed claim) ─────────────────────────
-    print("[MC] equal-CE matching ...")
-    match_ce = SIM.match_alpha_equal_ce(n_paths=n_paths)
-    match_th = SIM.match_alpha_threshold()
-    print(f"    equal-CE alpha   = {match_ce['alpha']:.6f} "
-          f"(target CE loss {match_ce['target_ce_loss']:.4f}%)")
+    # Calibration is EXACT (closed form): the MC matcher in simulate.py is
+    # seed-dependent (0.0856 vs 0.0812) and is kept only as a cross-check.
+    print("[calibration] exact equal-CE matching ...")
+    match_ce = X.match_alpha_equal_ce()
+    match_th = X.match_alpha_threshold()
+    print(f"    equal-CE alpha (exact)  = {match_ce['alpha']:.6f} "
+          f"(target CE {match_ce['ce_target']:.6f})")
     print(f"    threshold-matched alpha = {match_th['alpha']:.6f} "
-          f"(k_alpha={match_th.get('k_alpha', float('nan')):.6f} "
+          f"(k_alpha={match_th['k_alpha']:.6f} "
           f"vs k_eps={match_th['k_eps']:.6f})")
 
     print("[MC] main run ...")
@@ -264,13 +267,14 @@ def main():
                      res_ce['var']))
     rows.append(_row(f"VaR threshold-matched (alpha={match_th['alpha']:.4f})",
                      res_th['var']))
-    with open(os.path.join(RES, 'table2_mc.csv'), 'w', newline='') as fh:
+    with open(os.path.join(RES, 'table2_mc_paths.csv'), 'w', newline='') as fh:
         w = csv.DictWriter(fh, fieldnames=list(rows[0].keys()))
         w.writeheader()
         w.writerows(rows)
 
     print()
-    print("Table 2 (fixed-claim MC)")
+    print("Path-based MC (replication diagnostic; the manuscript's Table 2 "
+          "comes from scripts/run_exact.py)")
     hdr = (f"{'strategy':<38}{'mean':>8}{'std':>8}{'P(F<k)':>9}"
            f"{'E[(k-F)+]':>11}{'CVaR5':>8}{'CE':>8}{'CEloss%':>9}")
     print(hdr)
@@ -329,7 +333,10 @@ def main():
         ('VaR_quantile_hedge_cost', s_var['cost_min']),
         ('VaR_alpha_min', VaR.alpha_min()),
         ('alpha_equal_CE', match_ce['alpha']),
+        ('alpha_equal_CE_source', 'exact_stats (closed form, seed-free)'),
         ('alpha_threshold_matched', match_th['alpha']),
+        ('table2_source', 'results/table2_mc1e6.csv '
+                          '(N=1e6 exact-lognormal terminal draws)'),
         ('MC_N', n_paths),
         ('MC_steps', SIM.DEFAULT_N_STEPS),
         ('MC_seed', SIM.DEFAULT_SEED),

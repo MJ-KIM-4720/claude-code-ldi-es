@@ -16,8 +16,10 @@ Y0_VaR,0.9162058826666714
 k_alpha,0.7149262079955382
 VaR_quantile_hedge_cost,0.7663776470862717
 VaR_alpha_min,0.015974856104268853
-alpha_equal_CE,0.08561809327661273
-alpha_threshold_matched,0.10666267405019667
+alpha_equal_CE,0.08117781140467377
+alpha_equal_CE_source,"exact_stats (closed form, seed-free)"
+alpha_threshold_matched,0.10666267405019675
+table2_source,results/table2_mc1e6.csv (N=1e6 exact-lognormal terminal draws)
 MC_N,10000
 MC_steps,120
 MC_seed,20260803

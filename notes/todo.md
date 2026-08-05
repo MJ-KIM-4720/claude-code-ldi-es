@@ -34,16 +34,22 @@
 - [x] atom 검산 (ES 0.4784 / VaR 0.4287 이론값과 표본비율 대조)
 - [x] Figure 8 (c) 시안 추가 (CDF + atom 점프 + 좌측꼬리 소패널), 3종 모두 N=10⁶
 - [x] 테스트 153개 통과
+- [x] (후속) Table 3 원고 레이아웃 + α_min 열, ε 그리드 step 0.01 원복
+- [x] (후속) Table 2의 CE·CE loss 두 열 closed form + 각주 교체
+- [x] (후속) diagnostics.csv 재생성 (alpha_equal_CE → exact 0.081178)
+- [x] (후속) Fig 8 (c) 및 sens γ/μ_I/T 를 paper/figures/ 로 승격
 
 ## 향후 작업 (재계산 후 남은 것)
 - [ ] **Mode A / Mode B 중 논문 채택 결정** (사람이 판단 — `NOTES.md` §8)
 - [ ] A-2를 쓸 경우 δ=0.05는 저적립 구간을 slack으로 만듦 → δ 재선택 검토
 - [ ] baseline μ_I=0.023이 infeasibility 경계(0.0244)에 근접 — 본문에서 다룰지 결정
 - [ ] 새 Proposition (feasibility floor) 논문 본문에 반영
-- [ ] **Figure 6/8 시안 채택 결정** — Fig 8은 (c) `mc_terminal_y010_cdf_atom.png` 추천
-      (atom 점프 + 좌측꼬리 소패널을 한 장에)
-- [ ] Table 2 각주의 SE 문구 확인 — CE loss 열만 closed-form 값이라는 단서가
-      들어가 있다 (MC로 통일하려면 NOTES §11.9 참조)
+- [ ] **Figure 6 시안 채택 결정** (`outputs/common/eps_min_muI_v2.png`)
+- [ ] 승격한 sens 그림이 Mode B 버전임을 확인 — Mode A 채택 시
+      `outputs/cross_sectional/sens_*.png` 로 교체 (NOTES §12)
+- [ ] ρ 패널(`fig_E1_rho_es.png`) 승격 여부 결정
+- [ ] `paper/figures/` 잔여 구 방법론 그림 정리 (fig_A2/A3/B1/B2/C2/D2/E1/E2,
+      cross_sectional, time_series, mc_* 등)
 - [ ] 채택된 그림을 `paper/figures/` 로 복사 (기존 figure는 구 방법론 산출물)
 - [ ] 본문에서 ES의 우위를 tail 지표로 서술할 것 — equal-CE VaR 대비 무조건부
       E[(k−F)⁺]는 ES가 오히려 근소하게 높다 (NOTES §11.2 뉘앙스 항목)
