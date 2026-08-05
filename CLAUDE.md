@@ -66,7 +66,7 @@ The core contribution: ES eliminates gambling incentives that VaR creates for un
 │   ├── mc_convergence.csv     # N×2, steps×2 수렴 확인
 │   └── legacy/                # 폐기된 구 결과 백업
 │
-├── outputs/                   # 그림 (cross_sectional/ fixed_claim/ common/ 만 git 포함)
+├── outputs/                   # 그림 (cross_sectional/ fixed_claim/ common/ alt/ 만 git 포함)
 │
 ├── .devcontainer/
 │   └── devcontainer.json      # Codespaces 환경 정의

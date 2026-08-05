@@ -545,6 +545,10 @@ CSV에는 `ce`(MC), `ce_exact`, `ce_loss_pct_mc`, `ce_loss_pct_exact` 를 모두
    | `fig_C2_muI_compare.png` | 2×2, μ_I ∈ {0.010,0.015,0.023,0.030}, 총 위험자산 배분 |
    | `fig_D2_T_compare.png` | 2×2, T ∈ {5,10,15,20}, 총 위험자산 배분 |
 
+   > **[교정됨 — §12.6 참조]** 아래 2×2 ES-vs-VaR 구성은 원고 구성이
+   > 아니었다. 원고 3종은 **단일 패널 · A_ES 오버레이** 로 재생성했고,
+   > 2×2 버전은 `outputs/alt/` 로 옮겼다 (appendix 후보).
+
    구성(패널 배치·계열·기준선·음영)은 기존 그림 그대로이고 제목·패널
    라벨·범례는 전부 mathtext다. **두 가지가 불가피하게 달라졌다:**
    - 곡선은 수정된 joint-system / fixed-claim 모형으로 재계산했다. 기존
@@ -558,3 +562,43 @@ CSV에는 `ce`(MC), `ce_exact`, `ce_loss_pct_mc`, `ce_loss_pct_exact` 를 모두
 
    infeasible 패널(μ_I=0.030, T=15, T=20)에는 해당 config의 ε_min을 명시한
    박스를 넣었다 (0.1503 / 0.1343 / 0.1829 — Table 3과 일치).
+
+## 12.6 원고 그림 3종 구성 교정 (2026-08-05)
+
+§12.5에서 2×2 ES-vs-VaR 패널로 만든 것은 원고 구성이 아니었다.
+원고 구성은 **단일 패널 · ES 곡선만 파라미터 값별 오버레이** 다.
+`scripts/run_paper_figures.py` 를 그 사양으로 재작성했다.
+
+**확정 구성 (변경 금지):**
+
+| 항목 | 사양 |
+|---|---|
+| 패널 | 파일당 **1개** |
+| 곡선 | `A_ES(0,y)` 만, 파라미터 값별 오버레이 (warm palette) |
+| 기준선 | Merton `A = 1` 점선 |
+| slack config | 곡선을 상수 `A ≡ 1` 로 그린다 (무제약 claim이 이미 제약을 만족) |
+| infeasible config | 곡선 없음 + 주석 박스에 해당 ε_min 표시 |
+| x 범위 | y ∈ [0.2, 2.5] |
+| 변경 허용 | 제목·범례의 mathtext 표기뿐 |
+
+| 파일 | 파라미터 | slack | infeasible |
+|---|---|---|---|
+| `fig_A3_gamma_A_factor.png` | γ ∈ {2,3,5,8} | γ=8 (A≡1) | — |
+| `fig_C2_muI_compare.png` | μ_I ∈ {0.010,0.015,0.023,0.030} | μ_I=0.010 (A≡1) | μ_I=0.030 (ε_min=0.1503) |
+| `fig_D2_T_compare.png` | T ∈ {5,10,15,20} | T=5 (A≡1) | T=15 (0.1343), T=20 (0.1829) |
+
+x축 라벨만 원본의 "Funding Ratio F(t)" 대신 **"Reference state y"** 를 쓴다.
+A(t,y)는 t=0에 고정된 claim의 delta이므로 곡선의 인덱스는 reference state다
+— 구 라벨은 점마다 threshold를 다시 푸는 폐기 방법론의 해석이었다.
+Cross-sectional(x = F0) 버전이 필요하면 `outputs/cross_sectional/sens_*.png`.
+
+**2×2 ES-vs-VaR 버전은 삭제하지 않고 `outputs/alt/` 로 이동** 했다
+(appendix 그림 후보). 같은 스크립트가 두 세트를 모두 생성한다:
+
+```
+outputs/alt/alt_gamma_A_factor_panels.png
+outputs/alt/alt_muI_compare_panels.png
+outputs/alt/alt_T_compare_panels.png
+```
+
+`.gitignore` 에 `!outputs/alt/` 예외를 추가해 추적한다.

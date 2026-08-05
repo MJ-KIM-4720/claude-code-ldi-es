@@ -11,3 +11,4 @@ outputs/*
 !outputs/cross_sectional/
 !outputs/fixed_claim/
 !outputs/common/
+!outputs/alt/
