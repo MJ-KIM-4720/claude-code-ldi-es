@@ -30,6 +30,7 @@ The core contribution: ES eliminates gambling incentives that VaR creates for un
 ├── scripts/
 │   ├── run_recompute.py       # ★ 전체 재계산 진입점 (그림 + CSV 전부)
 │   ├── run_exact.py           # ★ exact 통계/표 + α_min + δ_L + Figure 시안
+│   ├── run_paper_figures.py   # ★ 원고 참조 그림 3종 → paper/figures/ 직접 기록
 │   └── legacy/                # 구 방법론(단일 식) 스크립트 — 참고용, 실행 금지
 │
 ├── tests/                     # pytest 기반 테스트 (153 passed)
