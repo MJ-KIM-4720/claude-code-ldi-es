@@ -638,12 +638,20 @@ def fig_terminal_variants(samples, out_dir, n_terminal):
     for name, key in keys.items():
         ax2.plot(gridL, _ecdf(srt[name], gridL), label=key, **LINE_STYLES[key])
     ax2.axhline(TAIL_Q, color='0.4', ls=':', lw=1.2)
+    # dots ON the curve at the 5% level = Q5; the bottom-5% MEAN is a
+    # different statistic and gets its own vertical dashed line.
     for name, key in keys.items():
-        ax2.plot(cv[name], TAIL_Q, 'o', ms=7, color=COLORS[key])
+        q5 = float(np.sort(F[name])[int(round(TAIL_Q * len(F[name]))) - 1])
+        ax2.plot(q5, TAIL_Q, 'o', ms=8, color=COLORS[key], zorder=6)
+        ax2.axvline(cv[name], color=COLORS[key], ls='--', lw=1.4, alpha=0.75)
+        ax2.annotate(f'{cv[name]:.3f}', xy=(cv[name], 0.005),
+                     xytext=(3, 0), textcoords='offset points',
+                     rotation=90, va='bottom', fontsize=10, color=COLORS[key])
     ax2.set_xlim(0.4, 0.9)
     ax2.set_xlabel('Terminal funding ratio $F_T$')
     ax2.set_ylabel('$P(F_T \\leq x)$')
-    ax2.set_title('Left tail $F_T \\leq 0.9$ (markers: Bottom-5% mean)')
+    ax2.set_title('Left tail $F_T \\leq 0.9$ '
+                  '(dots: $Q_5$, dashed: bottom-5% mean)')
     ax2.legend(**LEGEND)
     setup_grid(ax2)
 

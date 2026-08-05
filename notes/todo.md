@@ -43,6 +43,11 @@
 - [x] (마무리) 원고 참조 그림 3종 재생성 (`scripts/run_paper_figures.py`)
 - [x] (교정) 원고 3종을 원본 구성(단일 패널 · A_ES 오버레이)으로 재생성,
       2×2 ES-vs-VaR 버전은 `outputs/alt/` 로 이동 (appendix 후보)
+- [x] (batch 3) fig_baseline_claim_function / fig_baseline_adjustment_factor
+      재생성 (현행 캘리브레이션, 검산 통과)
+- [x] (batch 3) fig_feasibility_map 신규 — (F₀, ε) phase diagram
+- [x] (batch 3) mc_terminal_y010 우측 패널: Q5 점 + bottom-5% mean 수직 파선 분리
+- [x] (batch 3) fig_B2_epsilon_compare → outputs/alt/
 
 ## 향후 작업 (재계산 후 남은 것)
 - [ ] **Mode A / Mode B 중 논문 채택 결정** (사람이 판단 — `NOTES.md` §8)
@@ -54,8 +59,11 @@
       Mode A 채택 시 `outputs/cross_sectional/sens_*.png` 로 교체 (NOTES §12, §12.5)
 - [ ] ρ 패널(`fig_E1_rho_es.png`) 승격 여부 결정
 - [ ] `outputs/alt/` 2×2 ES-vs-VaR 패널의 appendix 채택 여부 결정
-- [ ] `paper/figures/` 잔여 구 방법론 그림 정리 (fig_A2/A3/B1/B2/C2/D2/E1/E2,
-      cross_sectional, time_series, mc_* 등)
+- [ ] `paper/figures/` 잔여 구 방법론 그림 정리 — 아직 구 산출물:
+      fig_A2_gamma_compare, fig_B1_epsilon_es, fig_C2_muI_components(+appendix),
+      fig_E1_rho_es, fig_E2_rho_components, fig_baseline_allocation,
+      fig_baseline_option_decomposition, fig_baseline_present_value,
+      cross_sectional, time_series, eps_sensitivity, mc_fan/samples/shortfall
 - [ ] 채택된 그림을 `paper/figures/` 로 복사 (기존 figure는 구 방법론 산출물)
 - [ ] 본문에서 ES의 우위를 tail 지표로 서술할 것 — equal-CE VaR 대비 무조건부
       E[(k−F)⁺]는 ES가 오히려 근소하게 높다 (NOTES §11.2 뉘앙스 항목)
