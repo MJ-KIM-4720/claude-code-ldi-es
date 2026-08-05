@@ -38,6 +38,9 @@
 - [x] (후속) Table 2의 CE·CE loss 두 열 closed form + 각주 교체
 - [x] (후속) diagnostics.csv 재생성 (alpha_equal_CE → exact 0.081178)
 - [x] (후속) Fig 8 (c) 및 sens γ/μ_I/T 를 paper/figures/ 로 승격
+- [x] (마무리) Table 3 Slack 행 k_ε·c "---", 각주 ε < ε_min
+- [x] (마무리) Table 2 행 라벨 α 4자리 (0.0812 / 0.1067)
+- [x] (마무리) 원고 참조 그림 3종 재생성 (`scripts/run_paper_figures.py`)
 
 ## 향후 작업 (재계산 후 남은 것)
 - [ ] **Mode A / Mode B 중 논문 채택 결정** (사람이 판단 — `NOTES.md` §8)
@@ -45,8 +48,8 @@
 - [ ] baseline μ_I=0.023이 infeasibility 경계(0.0244)에 근접 — 본문에서 다룰지 결정
 - [ ] 새 Proposition (feasibility floor) 논문 본문에 반영
 - [ ] **Figure 6 시안 채택 결정** (`outputs/common/eps_min_muI_v2.png`)
-- [ ] 승격한 sens 그림이 Mode B 버전임을 확인 — Mode A 채택 시
-      `outputs/cross_sectional/sens_*.png` 로 교체 (NOTES §12)
+- [ ] 승격·재생성한 그림이 모두 Mode B (x = reference state y) 버전임을 확인 —
+      Mode A 채택 시 `outputs/cross_sectional/sens_*.png` 로 교체 (NOTES §12, §12.5)
 - [ ] ρ 패널(`fig_E1_rho_es.png`) 승격 여부 결정
 - [ ] `paper/figures/` 잔여 구 방법론 그림 정리 (fig_A2/A3/B1/B2/C2/D2/E1/E2,
       cross_sectional, time_series, mc_* 등)

@@ -522,3 +522,39 @@ CSV에는 `ce`(MC), `ce_exact`, `ce_loss_pct_mc`, `ce_loss_pct_exact` 를 모두
    `paper/figures/` 는 이제 신규 4장 + 구 방법론 산출물이 섞여 있다.
    나머지(fig_A2, A3, B1, B2, C2, D2, E1, E2, cross_sectional, time_series,
    mc_fan/samples/shortfall 등)는 아직 구 산출물이다.
+
+## 12.5 마무리 오더 (3건)
+
+1. **Table 3 Slack 행 정리.** γ=8, μ_I=0.010, T=5 은 ε ≥ ε_M 이라 최적해가
+   무제약 claim g(y)=y 이다 — 보호 threshold가 존재하지 않으므로
+   `k_ε`·`c` 를 `---` 로 바꿨다 (`A_ES` = 1.000 은 유지). 각주에도
+   "In a slack row the optimum is the unconstrained claim, so no protection
+   threshold exists" 문장을 넣었다. 각주의 infeasible 조건 표기도
+   `ε ≤ ε_min` → **`ε < ε_min`** 으로 수정.
+   (참고: 코드의 `solve_es` 는 ε = ε_min 에서도 `InfeasibleError` 를 낸다.
+   경계에서는 내부해가 없고 극한으로만 접근하기 때문 — 표기와 solver의
+   경계 처리는 별개다.)
+2. **Table 2 행 라벨** α 를 본문 표기와 맞춰 4자리로: 0.08118 → **0.0812**,
+   0.10666 → **0.1067**. 계산에 쓰는 값은 그대로 (0.0811778, 0.1066627).
+3. **원고 참조 그림 3종 재생성** → `scripts/run_paper_figures.py` 신설,
+   `paper/figures/` 에 같은 파일명으로 덮어썼다.
+
+   | 파일 | 구성 |
+   |---|---|
+   | `fig_A3_gamma_A_factor.png` | 2×2, γ ∈ {2,3,5,8}, A_ES vs A_VaR, A=1 기준선, VaR gambling 음영 |
+   | `fig_C2_muI_compare.png` | 2×2, μ_I ∈ {0.010,0.015,0.023,0.030}, 총 위험자산 배분 |
+   | `fig_D2_T_compare.png` | 2×2, T ∈ {5,10,15,20}, 총 위험자산 배분 |
+
+   구성(패널 배치·계열·기준선·음영)은 기존 그림 그대로이고 제목·패널
+   라벨·범례는 전부 mathtext다. **두 가지가 불가피하게 달라졌다:**
+   - 곡선은 수정된 joint-system / fixed-claim 모형으로 재계산했다. 기존
+     파일은 폐기된 단일 식 solver + infeasible한 ε=0.05 산출물이었고
+     γ=7 패널은 현행 그리드에 없다.
+   - x축이 "Funding Ratio F(t)" → **"Reference state y"** 다. A(t,y)는
+     t=0에 고정된 claim의 delta이므로 x마다 threshold를 다시 푸는
+     기존 해석은 매 점에서 다른 claim을 가격하는 셈이다. Mode A
+     (x = F0, 점마다 다른 펀드) 버전이 필요하면
+     `outputs/cross_sectional/sens_*.png` 로 교체하면 된다.
+
+   infeasible 패널(μ_I=0.030, T=15, T=20)에는 해당 config의 ε_min을 명시한
+   박스를 넣었다 (0.1503 / 0.1343 / 0.1829 — Table 3과 일치).

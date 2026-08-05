@@ -228,11 +228,16 @@ def write_sensitivity_tex(panels, path):
             head = (rf"  \multirow{{{len(rows)}}}{{*}}{{{sym}}} & "
                     if i == 0 else "   & ")
             val = f"{r['value']:g}"
-            if r['feasible']:
-                ke, cc = _f(r['k_eps']), _f(r['c'], 3)
+            if not r['feasible']:
+                ke = cc = aes = '---'
+            elif not r['binding']:
+                # slack: the optimum is the Merton claim g(y) = y, so there is
+                # no protection threshold to report — only A_ES = 1.
+                ke = cc = '---'
                 aes = _f(r['A0'], 3)
             else:
-                ke = cc = aes = '---'
+                ke, cc = _f(r['k_eps']), _f(r['c'], 3)
+                aes = _f(r['A0'], 3)
             if pname == 'EPS':                       # VaR side is eps-invariant
                 avar = amin = '---'
             else:
@@ -260,11 +265,12 @@ Parameter & Value & $\varepsilon_{\min}$ & $\varepsilon_M$ & Status
 {\footnotesize Status is relative to the baseline $\varepsilon$: \emph{Binding}
 when $\varepsilon_{\min} < \varepsilon < \varepsilon_M$, \emph{Slack} when
 $\varepsilon \geq \varepsilon_M$ (the unconstrained solution already complies)
-and \emph{Infeasible} when $\varepsilon \leq \varepsilon_{\min}$, where no
-admissible strategy exists and the ES columns are left blank. In the
-$\varepsilon$ panel the VaR quantities are independent of $\varepsilon$ and are
-omitted. $\alpha_{\min}$ is free of $\gamma$ because $\lambda = \gamma\sigma_Y$
-does not depend on it.}
+and \emph{Infeasible} when $\varepsilon < \varepsilon_{\min}$, where no
+admissible strategy exists and the ES columns are left blank. In a slack row
+the optimum is the unconstrained claim, so no protection threshold
+$k_\varepsilon$ (and hence no $c$) exists. In the $\varepsilon$ panel the VaR
+quantities are independent of $\varepsilon$ and are omitted. $\alpha_{\min}$ is
+free of $\gamma$ because $\lambda = \gamma\sigma_Y$ does not depend on it.}
 \end{table}
 """ % (_f(P.F0, 1), _f(P.epsilon, 2), _f(P.alpha, 2),
        '\n  \\midrule\n'.join(blocks))
@@ -682,8 +688,8 @@ def main():
     tex_labels = ['Merton',
                   rf"ES ($\varepsilon={P.epsilon:g}$)",
                   rf"VaR ($\alpha={P.alpha:g}$)",
-                  rf"VaR equal-CE ($\alpha={eq['alpha']:.5f}$)",
-                  rf"VaR threshold-matched ($\alpha={thr['alpha']:.5f}$)"]
+                  rf"VaR equal-CE ($\alpha={eq['alpha']:.4f}$)",
+                  rf"VaR threshold-matched ($\alpha={thr['alpha']:.4f}$)"]
     for r, tl in zip(rows, tex_labels):
         r['tex_label'] = tl
 
