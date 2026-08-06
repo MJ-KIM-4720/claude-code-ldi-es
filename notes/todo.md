@@ -48,6 +48,8 @@
 - [x] (batch 3) fig_feasibility_map 신규 — (F₀, ε) phase diagram
 - [x] (batch 3) mc_terminal_y010 우측 패널: Q5 점 + bottom-5% mean 수직 파선 분리
 - [x] (batch 3) fig_B2_epsilon_compare → outputs/alt/
+- [x] (Fig 5) mc_terminal_y010 을 equal-CE(α=0.081178) 기준·세로 2단·큰 폰트로 재생성
+- [x] (Fig 5) results/table_eps_robust.csv — ε ∈ {0.10,0.12,0.14} equal-CE 재계산
 
 ## 향후 작업 (재계산 후 남은 것)
 - [ ] **Mode A / Mode B 중 논문 채택 결정** (사람이 판단 — `NOTES.md` §8)

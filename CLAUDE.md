@@ -61,6 +61,7 @@ The core contribution: ES eliminates gambling incentives that VaR creates for un
 │   ├── exact_vs_mc.md         # exact vs MC (±3 SE) 대조
 │   ├── table_sensitivity_v2.* # Table 3 + α_min 열
 │   ├── table_deltaL.*         # δ_L comparative statics
+│   ├── table_eps_robust.csv   # ε∈{0.10,0.12,0.14} equal-CE robustness
 │   ├── table2_mc_paths.csv    # 경로 MC (복제 진단용)
 │   ├── sensitivity.csv        # config별 eps_min/eps_M/feasibility
 │   ├── mc_convergence.csv     # N×2, steps×2 수렴 확인
