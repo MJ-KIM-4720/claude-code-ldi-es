@@ -602,3 +602,47 @@ outputs/alt/alt_T_compare_panels.png
 ```
 
 `.gitignore` 에 `!outputs/alt/` 예외를 추가해 추적한다.
+
+## 12.7 그림 batch 3 (2026-08-05)
+
+현행 캘리브레이션 고정 (ε=0.10, α=0.10, k_ε=0.727553, c=1.374471,
+k_α=0.714926, Y0_ES=0.803420, Y0_VaR=0.916206) 하에 재생성.
+전부 `scripts/run_paper_figures.py` 가 만든다.
+
+**1. `fig_baseline_claim_function.png` (재생성)**
+g_ES 빨강 실선 / g_VaR 파랑 파선 / 45° 점선 / k=1 수직선, x ∈ [0, 1.5].
+k_ε=0.728 과 k_α=0.715 는 0.013 밖에 안 떨어져 있어 세로 라벨이 겹친다 —
+수평 라벨 + leader 화살표로 처리했다. VaR의 k_α 점프는 open/filled 마커와
+파선 연결선으로 표시 (g_VaR: 0.715 → 1.000).
+
+**2. `fig_baseline_adjustment_factor.png` (재생성)**
+x = reference state y ∈ [0.2, 2.5], claim은 t=0 고정.
+t ∈ {0, 2.5, 5, 7.5} 에서 A_ES(빨강 계열 4개)·A_VaR(파랑 계열 4개),
+A=1 점선, VaR>1 영역 음영. ES의 U-shape(양끝 1 복귀)이 그대로 보인다.
+검산 통과: **A_ES(0, 0.8034) = 0.5804**, **A_VaR(0, 0.9162) = 0.8909**.
+
+**3. `fig_feasibility_map.png` (신규)** — (F₀, ε) phase diagram
+x = F₀ ∈ [0.7, 1.3], y = ε ∈ [0, 0.35].
+ε_min(F₀) = (k·e^{-r̃T} − F₀)⁺ 실선 (굴절점 F₀ = 1.0876),
+ε_M(F₀) = Put(0,F₀,r̃,σ_Y,k) 파선. Infeasible / Binding / Slack 세 영역
+음영·라벨, baseline (1.0, 0.10) 별 마커, F₀=0.8 수직 점선 + ε_min=0.288 주석.
+검산 통과: ε_min(1.0)=0.0876, ε_M(1.0)=0.1526, ε_min(0.8)=0.2876.
+
+부수적으로 보이는 것: **Binding 띠는 F₀이 낮아질수록 급격히 좁아진다.**
+F₀=0.8 에서 (0.2876, 0.2995) 로 폭이 0.012 밖에 안 된다 — 저적립 펀드는
+ES 제약이 걸리는 ε 구간 자체가 거의 없다. §12.5의 A-2 δ-slack 문제와
+같은 현상이다.
+
+**4. `mc_terminal_y010.png` 우측 패널 수정 (좌측 불변)**
+곡선 위 y=0.05 마커는 이제 **Q5** 다 (ES 0.788 / Merton 0.714 / VaR 0.654).
+**bottom-5% mean 은 수직 파선 3개 + 라벨** (ES 0.714 / Merton 0.646 /
+VaR 0.592). 제목: "Left tail F_T ≤ 0.9 (dots: Q5, dashed: bottom-5% mean)".
+이전 버전은 bottom-5% mean 을 5% 선 위의 점으로 찍어 분위수처럼 보였다 —
+두 통계를 분리한 것이 이번 수정의 요점이다.
+
+**5. `fig_B2_epsilon_compare.png` → `outputs/alt/`** (원고 참조 제거됨).
+
+`paper/figures/` 신규·교체 누적: fig_baseline_claim_function,
+fig_baseline_adjustment_factor, fig_feasibility_map, mc_terminal_y010,
+fig_A3_gamma_A_factor, fig_C2_muI_compare, fig_D2_T_compare,
+fig_A1_gamma_es, fig_C1_muI_es, fig_D1_T_es.

@@ -46,8 +46,8 @@ from ldi import es_model as ES
 from ldi import var_model as VaR
 from ldi import compare as C
 from ldi.style import (apply_paper_style, WARM_PALETTE, PAPER_LINE_STYLES,
-                       LEGEND, FIGSIZES, PAPER_GAMBLING, paper_grid,
-                       paper_hline, paper_savefig)
+                       COLORS, LEGEND, FIGSIZES, PAPER_GAMBLING, K_LINE,
+                       paper_grid, paper_hline, paper_savefig)
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 FIG = os.path.join(ROOT, "paper", "figures")
@@ -130,6 +130,168 @@ def es_overlay(param, values, title, fname):
              if skipped else ""))
 
 
+
+# ═══════════════════════════════════════════════════════════
+# Baseline figures
+# ═══════════════════════════════════════════════════════════
+
+def claim_function(fname='fig_baseline_claim_function.png'):
+    """g_ES vs g_VaR at the current calibration, with both thresholds."""
+    s, sv = ES.solve_es(), VaR.solve_var()
+    ke, c, ka = s['k_eps'], s['c'], sv['k_alpha']
+    y = np.linspace(0.0, 1.5, 1500)
+
+    fig, ax = plt.subplots(figsize=FIGSIZES['single'])
+    ax.plot(y, ES.claim(y, ke, c), label=rf'$g_{{ES}}$  ($c$={c:.3f})',
+            **PAPER_LINE_STYLES['ES'])
+
+    # g_VaR jumps at k_alpha: draw the branches separately, then mark the jump
+    lo, mid = y[y < ka], y[(y >= ka) & (y < P.k)]
+    ax.plot(lo, lo, **PAPER_LINE_STYLES['VaR'], label=r'$g_{VaR}$')
+    ax.plot(mid, np.full_like(mid, P.k), **PAPER_LINE_STYLES['VaR'])
+    hi = y[y >= P.k]
+    ax.plot(hi, hi, **PAPER_LINE_STYLES['VaR'])
+    ax.plot([ka, ka], [ka, P.k], color=COLORS['VaR'], ls='--', lw=1.2,
+            alpha=0.55)
+    ax.plot([ka], [ka], marker='o', ms=6, mfc='white', mec=COLORS['VaR'],
+            mew=1.6, zorder=5)
+    ax.plot([ka], [P.k], marker='o', ms=6, color=COLORS['VaR'], zorder=5)
+    ax.annotate(rf'jump at $k_\alpha$: $g_{{VaR}}\!\to\!k$',
+                xy=(ka, (ka + P.k) / 2), xytext=(10, -6),
+                textcoords='offset points', fontsize=10, color=COLORS['VaR'])
+
+    ax.plot(y, y, color='0.45', ls=':', lw=1.5, label=r'45$^\circ$  ($g(y)=y$)')
+    ax.axvline(P.k, **K_LINE)
+    ax.axvline(ke, color=COLORS['ES'], ls=':', lw=1.2, alpha=0.7)
+    ax.axvline(ka, color=COLORS['VaR'], ls=':', lw=1.2, alpha=0.7)
+    ax.annotate(rf'$k_\varepsilon$ = {ke:.3f}', xy=(ke, 0.42), xytext=(1.02, 0.42),
+                fontsize=11, color=COLORS['ES'], va='center',
+                arrowprops=dict(arrowstyle='->', color=COLORS['ES'], lw=1.1))
+    ax.annotate(rf'$k_\alpha$ = {ka:.3f}', xy=(ka, 0.24), xytext=(1.02, 0.24),
+                fontsize=11, color=COLORS['VaR'], va='center',
+                arrowprops=dict(arrowstyle='->', color=COLORS['VaR'], lw=1.1))
+    ax.annotate(rf'$k$ = {P.k:g}', xy=(P.k, 0.06), xytext=(6, 0),
+                textcoords='offset points', rotation=90, va='bottom',
+                fontsize=11, color='green')
+
+    ax.set_xlabel('Reference state $y$')
+    ax.set_ylabel('Terminal funding ratio $g(y)$')
+    ax.set_title('Claim functions: partial protection vs. abandonment')
+    ax.legend(**LEGEND)
+    paper_grid(ax)
+    ax.set_xlim(0.0, 1.5)
+    ax.set_ylim(0.0, 1.5)
+    plt.tight_layout()
+    path = os.path.join(FIG, fname)
+    paper_savefig(fig, path)
+    print(f"  wrote {os.path.relpath(path, ROOT)}"
+          f"   [k_eps={ke:.6f}, k_alpha={ka:.6f}, c={c:.6f}]")
+
+
+SNAPSHOTS = (0.0, 2.5, 5.0, 7.5)
+
+
+def adjustment_factor(fname='fig_baseline_adjustment_factor.png'):
+    """A_ES and A_VaR for the claim FIXED at t=0, at four time snapshots."""
+    s, sv = ES.solve_es(), VaR.solve_var()
+    y = np.linspace(*Y_RANGE, 700)
+    reds = plt.cm.Reds(np.linspace(0.45, 0.95, len(SNAPSHOTS)))
+    blues = plt.cm.Blues(np.linspace(0.45, 0.95, len(SNAPSHOTS)))
+
+    fig, ax = plt.subplots(figsize=FIGSIZES['single'])
+    # ES curves first, then VaR, so the two-column legend reads as one
+    # column per constraint rather than interleaving them.
+    for t, rc in zip(SNAPSHOTS, reds):
+        ax.plot(y, np.asarray(ES.adjustment_factor(y, s['k_eps'], s['c'],
+                                                   P.T - t)),
+                color=rc, lw=2.0, label=rf'ES, $t$={t:g}')
+    var_max = np.full_like(y, 1.0)
+    for t, bc in zip(SNAPSHOTS, blues):
+        a_var = np.asarray(VaR.adjustment_factor(y, sv['k_alpha'], P.T - t))
+        ax.plot(y, a_var, color=bc, lw=2.0, ls='--', label=rf'VaR, $t$={t:g}')
+        var_max = np.maximum(var_max, a_var)
+
+    ax.fill_between(y, 1.0, var_max, where=var_max > 1.0, color=COLORS['ES'],
+                    alpha=0.12, label=r'VaR gambling ($A>1$)')
+    paper_hline(ax, 1.0, '$A = 1$ (Merton)')
+    ax.axvline(s['k_eps'], color=COLORS['ES'], ls=':', lw=1.0, alpha=0.6)
+    ax.axvline(sv['k_alpha'], color=COLORS['VaR'], ls=':', lw=1.0, alpha=0.6)
+
+    ax.set_xlabel('Reference state $y$')
+    ax.set_ylabel('Adjustment factor $A(t,y)$')
+    ax.set_title('Fixed-claim exposure: ES returns to Merton in both tails')
+    ax.legend(**LEGEND, ncol=2, fontsize=10)
+    paper_grid(ax)
+    ax.set_xlim(Y_RANGE)
+    ax.set_ylim(0.0, 1.75)
+    plt.tight_layout()
+    path = os.path.join(FIG, fname)
+    paper_savefig(fig, path)
+    a_es0 = float(ES.adjustment_factor(s['Y0'], s['k_eps'], s['c'], P.T))
+    a_var0 = float(VaR.adjustment_factor(sv['Y0'], sv['k_alpha'], P.T))
+    print(f"  wrote {os.path.relpath(path, ROOT)}"
+          f"   [A_ES(0,{s['Y0']:.4f})={a_es0:.4f}, "
+          f"A_VaR(0,{sv['Y0']:.4f})={a_var0:.4f}]")
+
+
+def feasibility_map(fname='fig_feasibility_map.png'):
+    """(F0, eps) phase diagram: Infeasible / Binding / Slack."""
+    F0 = np.linspace(0.7, 1.3, 800)
+    e_lo = np.array([P.eps_min(f) for f in F0])
+    e_hi = np.array([P.eps_merton(f) for f in F0])
+    y_top = 0.35
+
+    fig, ax = plt.subplots(figsize=FIGSIZES['single'])
+    ax.fill_between(F0, 0.0, e_lo, color='0.55', alpha=0.30)
+    ax.fill_between(F0, e_lo, e_hi, color=COLORS['ES'], alpha=0.16)
+    ax.fill_between(F0, e_hi, y_top, color=COLORS['Merton'], alpha=0.12)
+
+    ax.plot(F0, e_lo, color=COLORS['ES'], lw=2.5,
+            label=r'$\varepsilon_{\min}(F_0) = (k e^{-\tilde r T} - F_0)^{+}$')
+    ax.plot(F0, e_hi, color=COLORS['VaR'], lw=2.0, ls='--',
+            label=r'$\varepsilon_M(F_0) = \mathrm{Put}(0,F_0,\tilde r,\sigma_Y,k)$')
+
+    kink = P.k * np.exp(-P.r_tilde * P.T)
+    if F0[0] <= kink <= F0[-1]:
+        ax.plot([kink], [0.0], marker='v', ms=8, color=COLORS['ES'], zorder=5)
+        ax.annotate(rf'kink at $F_0 = k e^{{-\tilde r T}}$ = {kink:.4f}',
+                    xy=(kink, 0.0), xytext=(-8, 14),
+                    textcoords='offset points', ha='right', fontsize=10)
+
+    ax.text(0.76, 0.055, 'Infeasible', fontsize=13, weight='bold',
+            color='0.25')
+    ax.text(1.02, 0.115, 'Binding', fontsize=13, weight='bold',
+            color=COLORS['ES'])
+    ax.text(0.95, 0.305, 'Slack (Merton)', fontsize=13, weight='bold',
+            color='0.35')
+
+    ax.plot([P.F0], [P.epsilon], marker='*', ms=17, color='k', zorder=6,
+            label=rf'baseline $(F_0,\varepsilon)$ = ({P.F0:g}, {P.epsilon:g})')
+
+    f_mark = 0.8
+    ax.axvline(f_mark, color='0.25', ls=':', lw=1.4)
+    ax.annotate(rf'$F_0$={f_mark:g}: $\varepsilon_{{\min}}$ = {P.eps_min(f_mark):.3f}',
+                xy=(f_mark, P.eps_min(f_mark)), xytext=(8, 10),
+                textcoords='offset points', fontsize=11,
+                bbox=dict(fc='white', ec='0.5', alpha=0.9))
+
+    ax.set_xlabel('Initial funding ratio $F_0$')
+    ax.set_ylabel(r'ES budget $\varepsilon$')
+    ax.set_title('Feasibility map of the ES constraint')
+    ax.legend(loc='upper right', framealpha=0.92, edgecolor='gray',
+              fontsize=10)
+    paper_grid(ax)
+    ax.set_xlim(0.7, 1.3)
+    ax.set_ylim(0.0, y_top)
+    plt.tight_layout()
+    path = os.path.join(FIG, fname)
+    paper_savefig(fig, path)
+    print(f"  wrote {os.path.relpath(path, ROOT)}"
+          f"   [eps_min(1.0)={P.eps_min(1.0):.4f}, "
+          f"eps_M(1.0)={P.eps_merton(1.0):.4f}, "
+          f"eps_min(0.8)={P.eps_min(0.8):.4f}]")
+
+
 # ═══════════════════════════════════════════════════════════
 # Appendix candidates: 2x2 ES vs VaR panels  ->  outputs/alt/
 # ═══════════════════════════════════════════════════════════
@@ -182,6 +344,10 @@ def main():
     os.makedirs(FIG, exist_ok=True)
     os.makedirs(ALT, exist_ok=True)
     print(f"Manuscript figures (F0={P.F0}, eps={P.epsilon}, claim fixed at t=0)")
+
+    claim_function()
+    adjustment_factor()
+    feasibility_map()
 
     es_overlay('GAMMA', C.SENS_CONFIGS['GAMMA'],
                r'ES Constraint: Effect of Risk Aversion ($\gamma$)',
