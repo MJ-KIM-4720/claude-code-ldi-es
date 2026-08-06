@@ -45,6 +45,8 @@ from ldi import params as P
 from ldi import es_model as ES
 from ldi import var_model as VaR
 from ldi import compare as C
+from ldi import exact_stats as X
+from ldi import simulate as SIM
 from ldi.style import (apply_paper_style, WARM_PALETTE, PAPER_LINE_STYLES,
                        COLORS, LEGEND, FIGSIZES, PAPER_GAMBLING, K_LINE,
                        paper_grid, paper_hline, paper_savefig)
@@ -292,6 +294,203 @@ def feasibility_map(fname='fig_feasibility_map.png'):
           f"eps_min(0.8)={P.eps_min(0.8):.4f}]")
 
 
+
+# ═══════════════════════════════════════════════════════════
+# Figure 5 — terminal CDF at the EQUAL-CE calibration
+# ═══════════════════════════════════════════════════════════
+
+TAIL_Q = 0.05
+
+
+def _ecdf(x_sorted, grid):
+    return np.searchsorted(x_sorted, grid, side='right') / len(x_sorted)
+
+
+def terminal_cdf(fname='mc_terminal_y010.png', n=SIM.DEFAULT_N_TERMINAL,
+                 seed=SIM.DEFAULT_SEED):
+    """Two stacked panels: full CDF (atom) and left tail (Q5 / bottom-5%).
+
+    The VaR series is the EQUAL-CE calibration, so the two constrained
+    strategies carry the same certainty-equivalent cost and the tail
+    comparison is like-for-like.
+    """
+    s = ES.solve_es()
+    a_eq = X.match_alpha_equal_ce()['alpha']
+    sv = VaR.solve_var(alpha=a_eq)
+
+    specs = {'Merton': (P.F0, 1.0, P.k),
+             'ES': (s['Y0'], s['c'], s['k_eps']),
+             'VaR': (sv['Y0'], 1.0, sv['k_alpha'])}
+    smp = SIM.terminal_sample(specs, n=n, seed=seed)
+    F = {kk: smp[kk] for kk in specs}
+    srt = {kk: np.sort(v) for kk, v in F.items()}
+    n_tail = int(round(TAIL_Q * n))
+    q5 = {kk: float(srt[kk][n_tail - 1]) for kk in specs}
+    bot5 = {kk: float(srt[kk][:n_tail].mean()) for kk in specs}
+
+    labels = {'Merton': 'Merton',
+              'ES': rf"ES ($\varepsilon$={s['eps']:g})",
+              'VaR': rf'VaR equal-CE ($\alpha$={a_eq:.4f})'}
+
+    big = {'axes.labelsize': 17, 'axes.titlesize': 18, 'legend.fontsize': 14,
+           'xtick.labelsize': 15, 'ytick.labelsize': 15}
+    with plt.rc_context(big):
+        fig, (ax, ax2) = plt.subplots(2, 1, figsize=(10, 13))
+
+        # ── top: full CDF with the atom jumps ──
+        grid = np.unique(np.concatenate(
+            [np.linspace(0.4, 1.8, 1600), [P.k - 1e-12, P.k, P.k + 1e-12]]))
+        for kk in specs:
+            ax.plot(grid, _ecdf(srt[kk], grid), label=labels[kk],
+                    **PAPER_LINE_STYLES[kk if kk != 'VaR' else 'VaR'])
+        ax.axvline(P.k, **K_LINE)
+        ax.annotate(rf'$k$ = {P.k:g}', xy=(P.k, 0.90), xytext=(6, 0),
+                    textcoords='offset points', rotation=90, va='bottom',
+                    fontsize=13, color='green')
+
+        for kk, dx in (('ES', 0.06), ('VaR', 0.06)):
+            lo = _ecdf(srt[kk], np.array([P.k - 1e-12]))[0]
+            hi = _ecdf(srt[kk], np.array([P.k]))[0]
+            ax.annotate('', xy=(P.k, hi), xytext=(P.k, lo),
+                        arrowprops=dict(arrowstyle='<->', color=COLORS[kk],
+                                        lw=2.2, shrinkA=0, shrinkB=0))
+            ax.annotate(rf'{kk}: $P(F_T\!=\!k)$ = {hi - lo:.3f}',
+                        xy=(P.k, (lo + hi) / 2), xytext=(dx * 100, -6),
+                        textcoords='offset points', fontsize=14,
+                        color=COLORS[kk])
+
+        # VaR's flat stretch: no mass between k_alpha and k
+        ka = sv['k_alpha']
+        ax.annotate('', xy=(ka, a_eq), xytext=(P.k, a_eq),
+                    arrowprops=dict(arrowstyle='<->', color=COLORS['VaR'],
+                                    lw=1.8, shrinkA=0, shrinkB=0))
+        ax.annotate(rf'VaR: no mass on $({ka:.3f},\,{P.k:g})$,'
+                    '\n' rf'plateau height $\alpha$ = {a_eq:.4f}',
+                    xy=((ka + P.k) / 2, a_eq), xytext=(0.47, 0.30),
+                    ha='left', va='center', fontsize=13,
+                    color=COLORS['VaR'],
+                    arrowprops=dict(arrowstyle='->', color=COLORS['VaR'],
+                                    lw=1.2))
+        ax.set_xlim(0.4, 1.8)
+        ax.set_ylim(0, 1.02)
+        ax.set_xlabel('Terminal funding ratio $F_T$')
+        ax.set_ylabel('$P(F_T \\leq x)$')
+        ax.set_title('Empirical CDF with the probability atom at $k$')
+        ax.legend(loc='lower right', framealpha=0.92, edgecolor='gray')
+        paper_grid(ax)
+
+        # ── bottom: left tail ──
+        gridL = np.linspace(0.4, 0.9, 900)
+        for kk in specs:
+            ax2.plot(gridL, _ecdf(srt[kk], gridL), label=labels[kk],
+                     **PAPER_LINE_STYLES[kk])
+        ax2.axhline(TAIL_Q, color='0.4', ls=':', lw=1.4)
+        for kk in specs:
+            ax2.plot(q5[kk], TAIL_Q, 'o', ms=11, color=COLORS[kk], zorder=6)
+            ax2.axvline(bot5[kk], color=COLORS[kk], ls='--', lw=1.8, alpha=0.8)
+            ax2.annotate(f'{bot5[kk]:.3f}', xy=(bot5[kk], 0.006),
+                         xytext=(4, 0), textcoords='offset points',
+                         rotation=90, va='bottom', fontsize=13,
+                         color=COLORS[kk])
+            ax2.annotate(f'{q5[kk]:.3f}', xy=(q5[kk], TAIL_Q), xytext=(0, 12),
+                         textcoords='offset points', ha='center', fontsize=13,
+                         color=COLORS[kk])
+
+        xs = np.linspace(0.45, 0.98, 3000)
+        d = _ecdf(srt['ES'], xs) - _ecdf(srt['VaR'], xs)
+        sc = np.where(np.diff(np.sign(d)))[0]
+        cross = float(xs[sc[-1]]) if sc.size else float('nan')
+        if np.isfinite(cross):
+            yc = float(_ecdf(srt['ES'], np.array([cross]))[0])
+            ax2.plot(cross, yc, marker='X', ms=13, color='k', zorder=7)
+            ax2.annotate(rf'ES–VaR crossing at $F_T$ = {cross:.3f}',
+                         xy=(cross, yc), xytext=(-14, 26),
+                         textcoords='offset points', ha='right', fontsize=13,
+                         arrowprops=dict(arrowstyle='->', color='0.3', lw=1.2))
+        ax2.set_xlim(0.4, 0.9)
+        ax2.set_xlabel('Terminal funding ratio $F_T$')
+        ax2.set_ylabel('$P(F_T \\leq x)$')
+        ax2.set_title('Left tail $F_T \\leq 0.9$ '
+                      '(dots: $Q_5$, dashed: bottom-5% mean)')
+        ax2.legend(loc='upper left', framealpha=0.92, edgecolor='gray')
+        paper_grid(ax2)
+
+        plt.tight_layout()
+        path = os.path.join(FIG, fname)
+        paper_savefig(fig, path)
+
+    atom_var = SIM.atom_fraction(F['VaR'])
+    p_short = float((F['VaR'] < P.k).mean())
+    print(f"  wrote {os.path.relpath(path, ROOT)}")
+    print(f"      equal-CE alpha = {a_eq:.6f}, Y0_VaR = {sv['Y0']:.6f}, "
+          f"k_alpha = {sv['k_alpha']:.6f}")
+    print(f"      sample atom_VaR   = {atom_var:.4f} "
+          f"(theory {X.var_stats(sol=sv)['atom_mass']:.4f})")
+    print(f"      sample P(F_T < 1) = {p_short:.4f} (alpha = {a_eq:.4f})")
+    print(f"      Q5        ES {q5['ES']:.3f} / Merton {q5['Merton']:.3f} "
+          f"/ VaR {q5['VaR']:.3f}")
+    print(f"      bottom-5% ES {bot5['ES']:.3f} / Merton {bot5['Merton']:.3f} "
+          f"/ VaR {bot5['VaR']:.3f}")
+    print(f"      ES-VaR CDF crossing at F_T = {cross:.3f}")
+
+
+# ═══════════════════════════════════════════════════════════
+# eps-robustness of the equal-CE comparison
+# ═══════════════════════════════════════════════════════════
+
+EPS_ROBUST = (0.10, 0.12, 0.14)
+EPS_ROBUST_EXPECTED = {           # (alpha, CE loss %, ES bot5, VaR bot5, ratio)
+    0.10: (0.0812, 2.275, 0.713, 0.574, 3.02),
+    0.12: (0.1419, 0.753, 0.685, 0.615, 2.20),
+    0.14: (0.2415, 0.103, 0.660, 0.638, 1.52),
+}
+
+
+def eps_robustness(path=None):
+    """Re-run the equal-CE calibration at several eps and tabulate the tails."""
+    import csv
+    if path is None:
+        path = os.path.join(ROOT, 'results', 'table_eps_robust.csv')
+    mert = X.merton_stats()
+    rows = []
+    print("eps-robustness of the equal-CE comparison")
+    print(f"    {'eps':>5}{'alpha':>9}{'CEloss%':>9}{'ES bot5':>9}"
+          f"{'VaR bot5':>10}{'ratio':>7}   vs expected")
+    for e in EPS_ROBUST:
+        a = X.match_alpha_equal_ce(eps=e)['alpha']
+        E, V = X.es_stats(eps=e), X.var_stats(alpha=a)
+        se = ES.solve_es(eps=e)
+        loss = 100.0 * (mert['ce'] - E['ce']) / mert['ce']
+        ratio = V['cond_shortfall'] / E['cond_shortfall']
+        rows.append(dict(eps=e, alpha_eqCE=a, es_ce_loss_pct=loss,
+                         es_bottom5=E['bottom5_mean'],
+                         var_bottom5=V['bottom5_mean'],
+                         cond_shortfall_ratio=ratio,
+                         es_q5=E['q5'], var_q5=V['q5'],
+                         es_cond_shortfall=E['cond_shortfall'],
+                         var_cond_shortfall=V['cond_shortfall'],
+                         es_prob_shortfall=E['prob_shortfall'],
+                         k_eps=se['k_eps'], c=se['c'], Y0_es=se['Y0'],
+                         bottom5_gain_pct=100.0 * (E['bottom5_mean']
+                                                   / V['bottom5_mean'] - 1)))
+        exp = EPS_ROBUST_EXPECTED[e]
+        got = (a, loss, E['bottom5_mean'], V['bottom5_mean'], ratio)
+        # each expected value is quoted at its own precision, so compare
+        # within one unit in the last displayed place
+        ulp = (1e-4, 1e-3, 1e-3, 1e-3, 1e-2)
+        devs = [abs(g - x) for g, x in zip(got, exp)]
+        ok = all(d <= u for d, u in zip(devs, ulp))
+        print(f"    {e:>5.2f}{a:>9.4f}{loss:>9.3f}{E['bottom5_mean']:>9.3f}"
+              f"{V['bottom5_mean']:>10.3f}{ratio:>7.2f}   "
+              f"{'match' if ok else 'DIFFERS'} "
+              f"(max dev {max(d / u for d, u in zip(devs, ulp)):.2f} ulp)")
+    with open(path, 'w', newline='') as fh:
+        w = csv.DictWriter(fh, fieldnames=list(rows[0].keys()))
+        w.writeheader()
+        w.writerows(rows)
+    print(f"    wrote {os.path.relpath(path, ROOT)}")
+
+
 # ═══════════════════════════════════════════════════════════
 # Appendix candidates: 2x2 ES vs VaR panels  ->  outputs/alt/
 # ═══════════════════════════════════════════════════════════
@@ -348,6 +547,8 @@ def main():
     claim_function()
     adjustment_factor()
     feasibility_map()
+    terminal_cdf()
+    eps_robustness()
 
     es_overlay('GAMMA', C.SENS_CONFIGS['GAMMA'],
                r'ES Constraint: Effect of Risk Aversion ($\gamma$)',
